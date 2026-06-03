@@ -16,8 +16,8 @@
 \conference{CLEF 2026: Conference and Labs of the Evaluation Forum,
   September 21--24, 2026, Jena, Germany}
 
-\title{When Offline Evaluation Misleads: Prototype-Head Replacement
-  in a Public BirdCLEF+ 2026 Pipeline}
+\title{System-Level Evaluation of Prototype Heads under Partial
+  Label Coverage in BirdCLEF+ 2026}
 
 \author[1]{Tsz Chai Alan Liu}[%
   email=tcaliu@sonoform.org,
@@ -31,11 +31,12 @@ Interpretable components are usually evaluated in isolation, yet deployed inside
 \end{abstract}
 
 \begin{keywords}
+  BirdCLEF+ 2026 \sep
   bioacoustics \sep
-  prototype networks \sep
+  prototype-based models \sep
   interpretability \sep
-  deployment gap \sep
-  BirdCLEF
+  partial-label evaluation \sep
+  offline--deployment gap
 \end{keywords}
 
 \maketitle
@@ -54,7 +55,7 @@ This year's edition expands beyond the bird-only scope of prior BirdCLEF competi
   \item Incomplete foundation-model coverage: 28 of 234 species lack Perch~\cite{ghani2023global} logit mappings.
 \end{itemize}
 
-Our entry placed 163rd (private macro-AUC 0.942) using the standard Perch+Proto+SED rank-fusion pipeline common among top teams this year, assembled from public Kaggle notebooks~\cite{protossmv2}.
+Our entry placed 163rd (private macro-AUC 0.942) using the standard Perch+Proto+SED rank-fusion pipeline common among top teams this year, which we adopt unchanged from public Kaggle notebooks~\cite{protossmv2} as a fixed, reproducible deployment testbed.
 \emph{We do not claim this pipeline as a contribution.} We use it instead as a fixed, high-performing \emph{deployment testbed}: a realistic system into which we can swap a single component and measure the effect. This lets us ask a question the competition itself does not: do offline rankings of an interpretable component survive deployment inside the full system?
 
 Our contributions are:
@@ -228,7 +229,7 @@ EfficientNet-B2  & 5.0\% & Focal loss~\cite{lin2017focal} \\
 \end{tabular}
 \end{table}
 
-Our system is a rank-fusion ensemble assembled from public Kaggle notebooks (Table~\ref{tab:ensemble}; Figure~\ref{fig:system}).
+Our deployment testbed is a rank-fusion ensemble we adopt unchanged from public Kaggle notebooks (Table~\ref{tab:ensemble}; Figure~\ref{fig:system}).
 Each member's scores are converted to per-species percentile ranks and weighted-summed.
 Rank-space blending is natural for the macro-AUC metric, which depends only on within-species ordering.
 
@@ -645,7 +646,7 @@ Our presence-purity metric is a weak interpretability proxy: on multi-label soun
 
 Finally, our broad-training test (D2-FOCAL) used a single focal-heavy recipe in which 5,090 focal windows swamped 708 on-domain ones. We therefore cannot conclude that broader training in general fails to recover the gap; balanced focal/soundscape sampling, domain weighting, pseudo-labeling on the target distribution, and species-held-out validation remain untested.
 
-The deployment testbed is assembled from public Kaggle notebooks~\cite{protossmv2}; only the prototype heads are author-designed and author-trained.
+The deployment testbed is adopted unchanged from public Kaggle notebooks~\cite{protossmv2}; the prototype heads are the sole author-designed, author-trained component.
 We are transparent about this distinction throughout.
 
 
