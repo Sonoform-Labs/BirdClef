@@ -1,4 +1,4 @@
-# Prototype-Head Replacement in a Public BirdCLEF+ 2026 Pipeline
+# Partial-Label Evaluation of Prototype Networks with Temporal Aggregation in BirdCLEF+ 2026
 
 Working note and supporting code for our **BirdCLEF+ 2026** (LifeCLEF 2026) submission.
 
@@ -29,4 +29,4 @@ A **supporting matched-control study** (faithful AudioProtoPNet vs a matched sig
 - Rough order: **Part I** `train_faithful.py` → `gate0/gate1/gate2_*.py`; **Part II** `train_ablation.py` → `train_sweeps.py` → `fill_gaps.py` → `export_*.py` → `perch_local.py`/`focal_embed.py`/`train_d2_focal.py` → `mechanism_diag.py`; then `kaggle_inference/build_*.py` for the leaderboard swaps; then the `figures/` scripts.
 
 ## Attribution
-The competition **pipeline** (Perch + ProtoSSM + SED rank-fusion) is assembled from public Kaggle notebooks (notably hideyukizushi's ProtoSSMv2) and is **not** claimed as novel, as stated in the paper. The **author-built** contributions are the Part II prototype heads, the full experimental study, the mechanism decomposition, and all analysis. The AudioProtoPNet head (Part I) is from Heinrich et al. (2025) / the BirdSet repository, used under their terms. This repository deliberately excludes those upstream codebases; it contains only first-party code, results, and the paper.
+The competition **pipeline** (Perch + ProtoSSM + SED rank-fusion) is adopted unchanged from public Kaggle notebooks (notably hideyukizushi's ProtoSSMv2) and is **not** claimed as novel, as stated in the paper. The **author-built** contributions are the Part II prototype heads, the full experimental study, the mechanism decomposition, and all analysis. The AudioProtoPNet head (Part I) is from Heinrich et al. (2025) / the BirdSet repository, used under their terms. This repository deliberately excludes those upstream codebases; it contains only first-party code, results, and the paper.
