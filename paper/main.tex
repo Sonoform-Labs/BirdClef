@@ -1,4 +1,4 @@
-%% BirdCLEF+ 2026 working note, ceurart (FINAL VERSION)
+%% BirdCLEF+ 2026 working note, ceurart (PREPRINT V2 DRAFT)
 \documentclass{ceurart}
 
 \usepackage{booktabs}
@@ -16,8 +16,7 @@
 \conference{CLEF 2026: Conference and Labs of the Evaluation Forum,
   September 21--24, 2026, Jena, Germany}
 
-\title{Partial-Label Evaluation of Prototype Networks with
-  Temporal Aggregation in BirdCLEF+ 2026}
+\title{Partial-Label Evaluation of Prototype Networks with Temporal Aggregation in BirdCLEF+ 2026}
 
 \author[1]{Tsz Chai Alan Liu}[%
   email=tcaliu@sonoform.org,
@@ -26,17 +25,17 @@
 
 %% ============================================================
 \begin{abstract}
-BirdCLEF+ 2026 requires identifying 234 bird, amphibian, insect, mammal, and reptile species from Brazilian Pantanal soundscape recordings under a strict 90-minute CPU-only inference deadline. Prototype-based models are attractive for this setting because they can attach predictions to interpretable acoustic evidence, but their offline evaluation may cover only a subset of the deployment label space. We study this problem by using a fixed Perch+prototype+SED rank-fusion pipeline as a deployment testbed and replacing only its prototype member with author-built prototype heads trained on frozen Perch embeddings. The original prototype member uses temporal aggregation across soundscape windows, while the replacement heads make window-level predictions. On a 708-window labelled soundscape bank covering 71 of 234 species, the replacement heads form a clear interpretability--accuracy frontier, and the higher-accuracy D2 head outperforms the deployed prototype member on the covered-species bank. However, this offline ranking does not transfer to the full hidden test: D1 scores 0.938 private macro-AUC, D2 scores 0.937, and a raw-Perch version without the prototype member scores 0.939, while the original temporally aggregated prototype member remains best at 0.942. We trace the failure to label-space coverage. The offline bank contains no positive examples for 163 target species, and the replacement heads disproportionately degrade ranking on those absent species when deployed inside the full system. A supporting matched-control study shows that prototype explanations can be class-pure and call-focused in a cleaner setting, so the result is not simply a failure of prototypes as explanations. Overall, our experiments document a failure mode of partial-label evaluation: a prototype component can improve the covered-species offline benchmark while reducing performance in the full bioacoustic deployment system.
+BirdCLEF+ 2026 requires identifying 234 bird, amphibian, insect, mammal, and reptile species from Brazilian Pantanal soundscape recordings under a strict 90-minute CPU-only inference deadline. Prototype-based models are attractive in this setting because they can attach predictions to interpretable acoustic evidence, but their offline evaluation may cover only a subset of the deployment label space. We study this problem by using a fixed Perch+prototype+SED rank-fusion pipeline as a deployment testbed and replacing only its prototype member with author-built prototype heads trained on frozen Perch embeddings. The deployed prototype member uses temporal aggregation across soundscape windows, while the primary replacement heads make window-level predictions. On a 708-window labelled soundscape bank covering 71 of 234 species, the replacement heads form an interpretability--accuracy frontier, and the higher-accuracy D2 head outperforms the deployed prototype member on the covered-species offline endpoint. However, this ranking does not transfer to hidden-test deployment: D1 scores 0.938 private macro-AUC, D2 scores 0.937, and a raw-Perch version without the prototype member scores 0.939, while the deployed temporally aggregated prototype member remains best at 0.942. Mechanism diagnostics indicate that the replacement heads degrade ranking on the 163 species absent from the offline bank. A no-SSM ablation reduces the deployed head from 0.94218 to 0.94089 private macro-AUC, showing that temporal aggregation contributes to the advantage but does not fully explain it. A supporting matched-control study shows that prototype explanations can be class-pure and call-focused in a cleaner setting, so the result is not simply a failure of prototypes as explanations. Overall, our experiments document a scoped failure mode of partial-label evaluation: a prototype component can improve a covered-species offline benchmark while reducing performance in the full bioacoustic deployment system.
 
 \end{abstract}
 
 \begin{keywords}
+  BirdCLEF+ 2026 \sep
   Bioacoustics \sep
+  Prototype-based Models \sep
   Temporal Aggregation \sep
   Partial-Label Evaluation \sep
-  Prototype Networks \sep
-  Interpretability \sep
-  BirdCLEF
+  Offline--Deployment Gap
 \end{keywords}
 
 \maketitle
@@ -46,41 +45,34 @@ BirdCLEF+ 2026 requires identifying 234 bird, amphibian, insect, mammal, and rep
 %% ============================================================
 \section{Introduction}
 
-The BirdCLEF+ 2026 challenge~\cite{birdclef2026}, part of LifeCLEF 2026~\cite{lifeclef2026}, requires identifying 234~species from soundscape recordings of the Brazilian Pantanal under a 90-minute CPU-only inference budget.
-The challenge continues the LifeCLEF evaluation campaign, which has been advancing biodiversity monitoring through machine learning since 2011~\cite{stowell2022bioacoustics}.
-This year's edition expands beyond the bird-only scope of prior BirdCLEF competitions~\cite{kahl2024birdclef, kahl2025birdclef} to include five taxonomic classes (Aves, Amphibia, Insecta, Mammalia, Reptilia), introducing new challenges:
+The BirdCLEF+ 2026 challenge~\cite{birdclef2026}, part of LifeCLEF 2026~\cite{lifeclef2026}, requires identifying 234 bird, amphibian, insect, mammal, and reptile species from Brazilian Pantanal soundscape recordings under a 90-minute CPU-only inference budget. The task extends the BirdCLEF series from bird-only classification toward broader passive-acoustic biodiversity monitoring~\cite{kahl2024birdclef,kahl2025birdclef}. This setting introduces several practical challenges:
+
 \begin{itemize}
-  \item Significant domain shift between focal training recordings and passive-acoustic-monitoring (PAM) soundscapes~\cite{ganin2015domain};
-  \item Severe class imbalance, with common bird species having hundreds of recordings and rare mammals having fewer than ten;
-  \item Incomplete foundation-model coverage: 28 of 234 species lack Perch~\cite{ghani2023global} logit mappings.
+\item Significant domain shift between focal training recordings and passive-acoustic-monitoring soundscapes~\cite{ganin2015domain};
+\item Severe class imbalance, with some common species having hundreds of recordings and rare species having fewer than ten;
+\item Partial label coverage in offline soundscape evaluation, where the labelled soundscape bank used in this work contains positives for only 71 of 234 target species;
+\item Incomplete foundation-model coverage, with 28 of 234 species lacking Perch~\cite{ghani2023global} logit mappings.
 \end{itemize}
 
-Our entry placed 163rd (private macro-AUC 0.942) using the standard Perch+Proto+SED rank-fusion pipeline common among top teams this year, which we adopt unchanged from public Kaggle notebooks~\cite{protossmv2} as a fixed, reproducible deployment testbed.
-\emph{We do not claim this pipeline as a contribution.} We use it instead as a fixed, high-performing \emph{deployment testbed}: a realistic system into which we can swap a single component and measure the effect. This lets us ask a question the competition itself does not: do offline rankings of an interpretable component survive deployment inside the full system?
+Many strong BirdCLEF systems address these constraints by combining pretrained audio models, prototype or embedding-based components, sound-event-detection models, rank fusion, and post-processing. In this work, we use a fixed ProtoSSMv2+SED rank-fusion core, implemented from public Kaggle reference notebooks~\cite{protossmv2}, as a deployment testbed. This fixed core scored 0.942 private macro-AUC. We hold the core fixed and replace only its prototype member with author-built prototype heads trained on frozen Perch embeddings.
+
+This controlled replacement setup lets us study a narrow evaluation question: when prototype components are evaluated offline on a partially covered soundscape bank, do their offline rankings survive deployment inside the full 234-species system? The question is especially relevant because the deployed prototype member uses temporal aggregation across soundscape windows, whereas our primary replacement heads are simpler window-level prototype models. Thus, the comparison tests not only prototype-head design, but also whether offline window-level evaluation is sufficient for judging a temporally aggregated component inside a full competition system.
+
+Our results show that offline evaluation can be misleading in this setting. On the 708-window labelled soundscape bank covering 71 species, the author-built heads form an interpretability--accuracy frontier, and the higher-accuracy D2 head exceeds the deployed prototype member on the covered-species offline endpoint. However, when the heads are swapped into the full system and scored on the hidden test, neither primary replacement improves over dropping the prototype member for raw Perch logits. D1 scores 0.938 private, D2 scores 0.937, raw Perch scores 0.939, and the deployed temporally aggregated prototype member remains best at 0.942. Diagnostics indicate that the failure is concentrated on the 163 species absent from the offline bank: the replacement heads degrade ranking on species the bank never evaluates, while the deployed prototype member preserves stronger signal for them. A no-SSM ablation reduces the deployed head to 0.94089 private macro-AUC, indicating that temporal aggregation contributes to the deployed advantage but does not fully explain it.
 
 Our contributions are:
+
 \begin{itemize}
-  \item A \textbf{controlled-replacement protocol}: swapping only the prototype member of a fixed public pipeline isolates the offline-versus-deployment behavior of one interpretable component while holding the rest of the system constant (Section~\ref{sec:system}).
-  \item An \textbf{offline interpretability--accuracy frontier} for author-built prototype heads on frozen Perch embeddings (Section~\ref{sec:part2}).
-  \item \textbf{Deployment evidence} that this offline ranking does not transfer: on the hidden test it reverses, and the higher-offline-accuracy of the two primary heads (D2) ranks worst (Section~\ref{sec:leaderboard}).
-  \item A \textbf{mechanism}: the offline bank covers only 71 of 234 species, and our heads damage the 163 uncovered species in the full macro-AUC system (Section~\ref{sec:mechanism}).
+\item A controlled system-level replacement protocol that swaps only the prototype member of a fixed Perch+prototype+SED rank-fusion pipeline;
+\item An offline interpretability--accuracy frontier for author-built prototype heads trained on frozen Perch embeddings;
+\item Hidden-test evidence that the offline ranking does not transfer to the full 234-species system;
+\item A mechanism analysis showing that the failure is concentrated on species absent from the offline soundscape bank;
+\item A temporal-module ablation showing that temporal aggregation contributes to, but does not fully explain, the deployed prototype member's advantage.
 \end{itemize}
-A supporting matched-control study (Section~\ref{sec:validity}, full detail in Appendix~\ref{app:partone}) shows prototype interpretability can be near-free and call-focused in a clean setting, which sharpens the deployment failure.
 
-We are not aware of this component-versus-system reversal being documented before with real competition leaderboard scores.
-It suggests that evaluating interpretable components in isolation, common throughout the ProtoPNet literature~\cite{chen2019protopnet}, can produce conclusions that do not hold under deployment, at least when the offline evaluation covers only part of the label space.
+A supporting matched-control study shows that prototype explanations can be class-pure and call-focused in a cleaner setting, suggesting that the observed failure is not simply a failure of prototypes as explanations. Instead, we frame it as a failure mode of partial-label evaluation for interpretable components in BirdCLEF-style systems.
 
-The remainder of the paper is organized as follows.
-Section~\ref{sec:related} reviews related work.
-Section~\ref{sec:data} describes the task, the dataset, and the 71/234-species coverage gap.
-Section~\ref{sec:system} describes the public deployment testbed and states what is and is not ours.
-Section~\ref{sec:part2} presents the author-built prototype heads and the offline frontier.
-Section~\ref{sec:leaderboard} reports the deployment reversal, the paper's centerpiece.
-Section~\ref{sec:mechanism} traces it to the uncovered species.
-Section~\ref{sec:validity} summarizes the supporting matched-control study.
-Sections~\ref{sec:discussion}--\ref{sec:limitations} discuss implications and limitations.
-Appendix~\ref{app:partone} gives the full matched-control study; Appendices~\ref{app:training}--\ref{app:sweeps} give training configurations and sweeps.
-
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:data} describes the task, dataset, and label-coverage gap. Section~\ref{sec:system} presents the fixed deployment testbed. Section~\ref{sec:part2} describes the replacement prototype heads and offline results. Section~\ref{sec:leaderboard} reports hidden-test replacement results. Section~\ref{sec:mechanism} analyzes the uncovered-species failure mode. Section~\ref{sec:validity} summarizes the supporting matched-control study. Sections~\ref{sec:discussion}--\ref{sec:future} discuss implications, limitations, and future work.
 
 %% ============================================================
 %%  2. RELATED WORK
@@ -90,49 +82,21 @@ Appendix~\ref{app:partone} gives the full matched-control study; Appendices~\ref
 
 \subsection{Prototype networks and interpretability}
 
-Part-prototype networks classify inputs by comparing them to learned class-specific exemplars.
-ProtoPNet~\cite{chen2019protopnet} introduced the paradigm for image classification: a CNN backbone extracts convolutional features, a prototype layer computes similarities between latent patches and learned prototype vectors, and a non-negative last layer ensures transparent decisions.
-The resulting ``this looks like that'' reasoning is inherently interpretable: the explanation is the model, not a post-hoc approximation.
+Prototype networks aim to make classification decisions interpretable by comparing an input to learned representative examples. ProtoPNet~\cite{chen2019protopnet} introduced this paradigm for image classification: a convolutional backbone extracts latent features, a prototype layer measures similarity to learned class-specific prototypes, and the final layer maps prototype activations to class predictions. This produces a ``this looks like that'' form of explanation in which the prototypes are part of the model rather than a post-hoc visualization.
 
-Follow-up work has extended the paradigm substantially.
-ProtoTree~\cite{nauta2020thislooks} replaces the bag-of-prototypes with a soft decision tree for sequential reasoning.
-However, a growing body of critiques has identified fragilities in prototype interpretability.
-Hoffmann et al.~\cite{hoffmann2021looks} demonstrated that ProtoPNet's latent-space similarities do not always correspond to meaningful input-space similarities: noise and compression artifacts can corrupt the explanations.
-Nauta et al.~\cite{nauta2020thislooks} showed that prototypes can be misleading without explicit decomposition of what visual properties drive similarity.
-These critiques motivate our quantitative validity measurements (purity and shortcut rate) rather than relying on qualitative visualization alone.
+However, prototype interpretability is not automatic. Prior work has shown that latent prototype similarity may fail to correspond to meaningful input-space similarity, especially when prototypes capture artifacts or compressed features rather than semantically relevant structure~\cite{hoffmann2021looks}. This motivates evaluating prototype quality quantitatively rather than relying only on visual or acoustic examples. In this work, we measure prototype validity using class purity and shortcut rate in a matched-control setting, and then test whether prototype components that look strong offline remain useful inside a deployed BirdCLEF system.
 
-\subsection{Audio prototype methods}
+\subsection{Prototype and foundation models in bioacoustics}
 
-AudioProtoPNet~\cite{heinrich2025audioprotopnet} adapts the ProtoPNet paradigm to multi-label bird sound classification.
-It uses a ConvNeXt-Base~\cite{liu2022convnext} backbone pretrained on the BirdSet XCL dataset~\cite{rauch2024birdset} (9,734 bird species, over 6,800 hours of recordings) and achieves average AUROC 0.90 across BirdSet's seven evaluation sets, a 7.1\% improvement over Perch~\cite{ghani2023global}.
-Crucially, both the training set and all seven evaluation sets are bird-only; non-avian taxa are explicitly flagged as unrealized future work.
-Our matched-control study (Appendix~\ref{app:partone}) probes this exact boundary.
+AudioProtoPNet~\cite{heinrich2025audioprotopnet} adapts the prototype-network paradigm to multi-label bird sound classification, using a ConvNeXt backbone pretrained on BirdSet~\cite{rauch2024birdset}. It shows that prototype explanations can be useful in bird-only bioacoustic classification, but leaves broader multi-taxon settings as future work. Our supporting matched-control study probes this boundary by testing whether prototype explanations remain class-pure and call-focused in a cleaner audio setting before studying their failure inside the full BirdCLEF+ 2026 deployment system.
 
-\subsection{Foundation models in bioacoustics}
+Pretrained bioacoustic models have become central to recent BirdCLEF systems. BirdNET~\cite{kahl2021birdnet}, Perch~\cite{ghani2023global}, PANNs~\cite{kong2020panns}, and BirdSet backbones~\cite{rauch2024birdset} provide strong feature extractors for downstream classification. In BirdCLEF+ 2026, we use frozen Perch embeddings and logits as the fixed representation layer for all prototype-head replacement experiments. This lets us study the prototype component itself while holding the backbone representation constant.
 
-Pretrained audio classifiers have become the dominant feature extractors in bioacoustic competitions.
-BirdNET~\cite{kahl2021birdnet} provides a widely-deployed CNN-based bird classifier using multiple spectrogram views.
-Google's Perch~\cite{ghani2023global} (the Bird Vocalization Classifier) produces 1,536-dimensional embeddings enabling strong cross-domain transfer, including to marine environments.
-PANNs~\cite{kong2020panns} demonstrated that CNNs pretrained on the large-scale AudioSet generalize effectively across audio tasks.
-BirdSet~\cite{rauch2024birdset} provides pretrained ConvNeXt backbones~\cite{liu2022convnext} and a standardized benchmark spanning 9,734 bird species.
+\subsection{BirdCLEF systems and component evaluation}
 
-In BirdCLEF 2026, the Perch+SED+Proto rank-fusion pipeline became the dominant public approach, with most top teams building on shared Kaggle notebooks.
-This standardization means that system novelty is concentrated in head design and post-processing rather than backbone selection, a pattern our study leverages by varying only the prototype head while holding the rest of the pipeline fixed.
+Recent BirdCLEF working notes emphasize transfer learning, pseudo-labeling, distillation, ensembling, and post-processing as practical tools for bioacoustic classification under domain shift and strict inference budgets. Miyaguchi et al.~\cite{miyaguchi2025stsg} explored lightweight tokenized spectrogram embeddings for fast inference, while Sydorskyi and Gon\c{c}alves~\cite{sydorskyi2025domainshift} used semi-supervised distillation and iterative pseudo-labeling to achieve a private AUC of 0.928 in BirdCLEF+ 2025. These studies report system-level performance and ablations, but they do not focus on whether an offline ranking of an interpretable component transfers when that component is inserted into the full deployment system.
 
-\subsection{Prior BirdCLEF working notes}
-
-The BirdCLEF series has produced a rich literature on bioacoustic classification under domain shift.
-Recent working notes document a progression from simple transfer learning to sophisticated multi-stage pipelines.
-Miyaguchi et al.~\cite{miyaguchi2025stsg} explored tokenized spectrogram embeddings (STSG) as a lightweight alternative to CNN-based classification, demonstrating viability but limited accuracy.
-Sydorskyi and Gon\c{c}alves~\cite{sydorskyi2025domainshift} addressed domain shift through semi-supervised distillation and iterative pseudo-labeling~\cite{lee2013pseudolabel}, placing 2nd with private AUC 0.928.
-Both report system-level ablations but do not test whether offline component rankings transfer to deployment, the gap we investigate here.
-
-\subsection{Component vs.\ system evaluation}
-
-While component-level ablations are standard in ML, the gap between offline evaluation and deployment performance is underexplored in the interpretability literature specifically.
-The ensemble learning literature has long observed that individually strong models can perform poorly in combinations, and vice versa.
-Domain adaptation work~\cite{ganin2015domain} has shown that features learned for one distribution may not transfer to another.
-Our work connects these threads: we show that an interpretability evaluation performed on one distribution (the offline evaluation set) produces rankings that reverse on another (the deployment test set), mediated by the component's interaction with the rest of the pipeline.
+This component-versus-system question is important for BirdCLEF+ 2026 because offline soundscape evaluation may cover only part of the deployment label space. In our case, the labelled soundscape bank used for offline prototype evaluation contains positives for only 71 of 234 target species. A prototype head can therefore improve the covered-species offline benchmark while damaging ranking on species the offline bank cannot evaluate. Our work studies this failure mode directly by replacing only the prototype member of a fixed Perch+prototype+SED rank-fusion pipeline, measuring the effect on the hidden 234-species leaderboard, and adding a temporal-module ablation to separate partial-label effects from the deployed member's temporal aggregation.
 
 
 %% ============================================================
@@ -151,19 +115,19 @@ All inference must complete within a 90-minute CPU-only budget on a Kaggle noteb
 \subsection{Training data and species distribution}
 
 \begin{table}[t]
-\caption{Species distribution, approximate focal recording counts, and Perch logit coverage by taxon.}
+\caption{Species distribution, approximate focal recording counts, and direct Perch logit coverage by taxon. Proxy mappings are described separately in Section~\ref{sec:data}.}
 \label{tab:taxa}
 \begin{tabular}{lrrr}
 \toprule
-Taxon & Species & Focal rec. & Perch-mapped \\
+Taxon & Species & Focal rec. & Direct Perch \\
 \midrule
 Aves       & 162 & $\sim$24,000 & 159 \\
 Amphibia   & 35  & $\sim$1,800  & 22 \\
 Insecta    & 28  & $\sim$900    & 13 \\
 Mammalia   & 8   & $\sim$300    & 6 \\
-Reptilia   & 1   & $\sim$20     & 3 (proxy) \\
+Reptilia   & 1   & $\sim$20     & 0 \\
 \midrule
-\textbf{Total} & \textbf{234} & $\sim$\textbf{27,000} & \textbf{203 + 3} \\
+\textbf{Total} & \textbf{234} & $\sim$\textbf{27,000} & \textbf{203} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -183,22 +147,40 @@ Soundscapes are captured by passive acoustic monitoring devices, contain overlap
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{fig_domain_shift.pdf}
-\caption{Focal$\rightarrow$soundscape domain shift for one species (Dwarf Tree Frog): a clean, single-species focal recording (top) vs.\ a soundscape window with eight overlapping species and environmental noise (bottom). The overlapping vocalizations and broadband noise absent from focal clips are the primary challenge for both classification and prototype projection.}
+\caption{Focal$\rightarrow$soundscape domain shift for one species (Dwarf Tree Frog): a clean, single-species focal recording (top) vs.\ a soundscape window with eight overlapping species and environmental noise (bottom). This pair is illustrative rather than a quantitative summary of all recordings. The overlapping vocalizations and broadband noise absent from focal clips are the primary challenge for both classification and prototype projection.}
 \label{fig:domainshift}
 \end{figure}
 
-This shift is particularly relevant for our study: prototypes learned from clean focal recordings may not project meaningfully onto noisy soundscape windows, and vice versa, a hypothesis our mechanism decomposition confirms (Section~\ref{sec:mechanism}).
+This shift provides deployment context for our experiments. However, the main failure analyzed below is not domain shift alone, but the interaction between partial offline label coverage and full-system deployment.
 
 \subsection{Perch coverage gap}
 
-A key property for our analysis: of 234 species, 203 have direct Perch logit mappings, 3 are mapped via taxonomic proxies, and 28 (predominantly insects and amphibians) produce no Perch logit signal.
-This Perch gap (28 species) is distinct from the gap that proves central to our mechanism (Section~\ref{sec:mechanism}): the offline evaluation bank has positive labels for only 71 of 234 species, and the deployed head's advantage comes mainly from the 163 species absent from that bank.
+A separate coverage issue comes from the Perch class mapping. Of the 234 target species, 203 have direct Perch logit mappings, 3 are handled through taxonomic proxy mappings, and 28 produce no Perch logit signal. Table~\ref{tab:taxa} reports only direct Perch coverage by taxon to avoid conflating target species with proxy logits. The unmapped species are concentrated mainly among insects and amphibians.
 
-\subsection{Evaluation bank}
+This Perch coverage gap is distinct from the offline evaluation gap that drives our main mechanism. The Perch gap concerns which species receive foundation-model logit support, whereas the offline evaluation gap concerns which species have positive labels in the 708-window soundscape bank. In our offline bank, only 71 of 234 species have positive examples; the remaining 163 species cannot contribute to offline macro-AUC. Section~\ref{sec:mechanism} shows that the deployment advantage of the original prototype member is concentrated on these offline-absent species.
 
-For our offline evaluation, we use 708 labelled soundscape windows from 59 files, evaluated via GroupKFold(5) with macro-AUC computed over the 71 species that have at least one positive instance; the remaining 163 species have no positive soundscape signal in this bank, a limitation that becomes central in Section~\ref{sec:mechanism}.
-This is a substantially smaller evaluation set than the hidden test (700+ files, all 234 species), and confidence intervals are correspondingly wider.
-We partially compensate by also reporting leaderboard scores from nine late submissions on the full hidden test.
+\subsection{Offline soundscape bank and split construction}
+\label{sec:evalbank}
+
+For local prototype development and offline evaluation, we use a labelled soundscape bank drawn from the competition-provided 5-second multi-label soundscape annotations for which Perch embeddings and logits were available in our pipeline. The bank contains 708 windows from 59 one-minute source files. Since each one-minute file is divided into twelve 5-second windows, each source file contributes its temporal windows as a group. We do not rebalance the bank by species or taxon.
+
+All offline folds are constructed at the source-file level using GroupKFold(5). In each fold, all windows from a given one-minute source file are assigned entirely to either the training split or the held-out split; no windows from the same source file cross the train--validation boundary. This prevents temporally adjacent windows from the same recording from appearing on both sides of an offline comparison. Species are included in offline macro-AUC only if they have at least one positive instance in the 708-window bank, yielding 71 evaluable species. The remaining 163 target species have no positive examples in this bank, so the offline endpoint can evaluate covered-species behavior but cannot evaluate whether a head damages ranking for absent species. This coverage limitation becomes central in Section~\ref{sec:mechanism}.
+
+The primary D1 and D2 replacement heads and the offline design sweeps in Tables~\ref{tab:buildup}--\ref{tab:pertaxon} are developed on this soundscape bank. Focal recordings are not used to train the primary D1 and D2 heads; they are introduced only in the separate D2-FOCAL sensitivity experiment (Section~\ref{sec:mechanism}). Thus, the main offline endpoint and the primary replacement heads share the same labelled soundscape source, while the hidden leaderboard provides a separate system-level deployment check.
+
+\subsection{Evaluation endpoints and analysis plan}
+\label{sec:endpoints}
+
+We distinguish component-level offline evaluation from system-level deployment evaluation. The offline endpoint is out-of-fold macro-AUC on the 708-window labelled soundscape bank, computed over the 71 species with at least one positive instance. This endpoint is used to compare prototype-head designs on the covered-species bank and to construct the interpretability--accuracy frontier. The deployment endpoint is private hidden-test macro-AUC after replacing the prototype member inside the fixed ProtoSSMv2+SED core. The primary deployment comparison is between the deployed ProtoSSMv2 member, the two primary replacement heads (D1 and D2), and the raw-Perch drop baseline.
+
+We treat the other analyses as exploratory diagnostics or sensitivity checks. Coverage-gating, re-weighting, D2-FOCAL, per-taxon breakdowns, absent-species diagnostics, and the supporting AudioProtoPNet matched-control study are not used as confirmatory endpoints; they are used to interpret the direction of the deployment reversal and to probe possible mechanisms. Because the local bank is small and the hidden-test labels are unavailable, we present the paper as a documented system-level case study rather than as a fully powered hypothesis test.
+
+\subsection{Statistical reporting conventions}
+\label{sec:statreporting}
+
+For offline experiments, reported macro-AUC values are out-of-fold estimates from the file-level GroupKFold procedure. Fold-level summaries, when available, are used as descriptive uncertainty summaries rather than as independent replicated experiments, because the number of folds is small and species coverage is incomplete. Hyperparameter sweeps on the offline bank are treated as model-development analyses; they should not be read as a locked, independent model-selection benchmark.
+
+Prototype presence-purity is reported over the set of evaluated prototypes. Null purity values are computed by shuffling prototype-to-class assignments. When confidence intervals are reported for purity, they summarize uncertainty over prototypes rather than hidden-test deployment uncertainty. For hidden-test leaderboard results, Kaggle returns only aggregate public/private macro-AUC scores and does not expose per-example or per-species labels. We therefore do not compute paired tests, per-species confidence intervals, or p-values for leaderboard differences. Public and private scores are reported as descriptive system-level outcomes, and no multiple-comparison correction is applied to exploratory subgroup or rescue analyses.
 
 
 %% ============================================================
@@ -207,45 +189,27 @@ We partially compensate by also reporting leaderboard scores from nine late subm
 \section{Deployment Testbed}
 \label{sec:system}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{fig_system.pdf}
-\caption{System architecture. Four ensemble members are blended in rank space. ProtoSSMv2 (52.4\% weight) uses one prototype per species with cosine similarity, a per-class fusion gate, and a bidirectional SSM. The SED model (34.9\%) provides clip+frame predictions. Two EfficientNet models (12.6\%) provide ensemble diversity. Empirical-Bayes ecological priors are applied as post-processing. We replace only the ProtoSSMv2 member (dashed red) with our author-built heads and re-evaluate on the leaderboard.}
-\label{fig:system}
-\end{figure}
+We use a fixed ProtoSSMv2+SED rank-fusion core as the deployment testbed for all replacement experiments. This core contains two active members: the deployed ProtoSSMv2 prototype member and a Perch-distilled SED member. Auxiliary EfficientNet members from the original public pipeline are disabled uniformly across the replacement experiments, so only the prototype member differs between leaderboard rows. Each leaderboard row in Table~\ref{tab:leaderboard} corresponds to one submitted system generated by replacing the prototype-head artifact and leaving the rest of this core unchanged.
 
-\begin{table}[t]
-\caption{Ensemble composition. All components sourced from public Kaggle notebooks~\cite{protossmv2}. The Proto member is the one we replace (Section~\ref{sec:part2}).}
-\label{tab:ensemble}
-\begin{tabular}{lrl}
-\toprule
-Member & Weight & Description \\
-\midrule
-ProtoSSMv2       & 52.4\% & Proto-cosine + gate + SSM \\
-Perch-distilled SED & 34.9\% & Clip + frame readout \\
-EfficientNet-B0  & 7.6\% & Focal loss~\cite{lin2017focal} \\
-EfficientNet-B2  & 5.0\% & Focal loss~\cite{lin2017focal} \\
-\bottomrule
-\end{tabular}
-\end{table}
+Each member's scores are converted to per-species percentile ranks and then weighted-summed. For member $m$, species $c$, raw score $s_c^{(m)}$, rank-percentile score $r_c^{(m)}$, and fusion weight $w_m$, the final fused score is
+\[
+  r_c^{(m)} = \operatorname{rankpercentile}(s_c^{(m)}), \qquad
+  S_c = \sum_m w_m r_c^{(m)}.
+\]
+Rank-space blending is natural for macro-AUC because the metric depends only on within-species ordering. The deployed ProtoSSMv2+SED core scores 0.942 private macro-AUC on the hidden test. Since hidden labels are not released, this score is used only as the deployment reference for descriptive replacement comparisons.
 
-Our deployment testbed is a rank-fusion ensemble we adopt unchanged from public Kaggle notebooks (Table~\ref{tab:ensemble}; Figure~\ref{fig:system}).
-Each member's scores are converted to per-species percentile ranks and weighted-summed.
-Rank-space blending is natural for the macro-AUC metric, which depends only on within-species ordering.
+The prototype member, ProtoSSMv2~\cite{protossmv2}, uses one class-specific prototype per species, projected to a 320-dimensional space. It computes cosine similarity between Perch-derived features and class prototypes, applies positive-temperature scaling via softplus, and blends prototype scores with Perch logits using a learned per-class fusion gate $\gamma_c = \sigma(\alpha_c)$. A bidirectional residual selective state-space model~\cite{gu2024mamba,gu2022s4} aggregates predictions across the 12 temporal windows in each one-minute soundscape file.
 
-The dominant member, ProtoSSMv2~\cite{protossmv2}, uses one class-specific prototype per species (234 total, projected to a 320-dimensional space) with cosine similarity and a positive-temperature scaling (via softplus).
-A learned per-class fusion gate $\gamma_c = \sigma(\alpha_c)$ blends prototype scores with Perch logits.
-A bidirectional residual selective state-space model (SSM~\cite{gu2024mamba, gu2022s4}) aggregates predictions across the 12 temporal windows per file.
 
 The SED model uses an EfficientNet~\cite{tan2019efficientnet} backbone distilled from Perch embeddings (MSE loss), producing clip-level and frame-level logits combined as $p = 0.5 \cdot \sigma(l_\text{clip}) + 0.5 \cdot \sigma(\max_t l_\text{frame}(t))$, averaged across 5 folds with Gaussian smoothing ($\sigma{=}0.65$).
 
 Post-processing includes empirical-Bayes ecological priors (site/hour shrinkage estimators with circular-Gaussian hour smoothing, $\sigma{=}1.5$ hours) and rank-active methods (taxonomy smoothing, file-level max pooling, top-2 averaging, and $\Delta$-smoothing).
 We verified that per-class temperature scaling and isotonic thresholding are rank-inert (0.00 rank change), confirming they cannot affect AUC.
 
-The system achieved private macro-AUC 0.942. \emph{None of this pipeline is our contribution}: it follows established conventions and is built almost entirely from public components. We use it as a fixed deployment testbed and change exactly one thing, the prototype member (Section~\ref{sec:part2}). Table~\ref{tab:ownership} states precisely what is public and what is ours.
+We do not claim novelty for the base pipeline; it is used as a fixed deployment testbed. Our contribution is the controlled replacement of its prototype member and the analysis around that replacement. Table~\ref{tab:ownership} states what is public and what is ours.
 
 \begin{table}[t]
-\caption{What is public versus ours. The deployed pipeline is a fixed, public testbed; our contribution is the controlled replacement of its prototype member and the analysis around it.}
+\caption{What is public versus ours. The deployed pipeline is a fixed, public testbed; our contribution is the controlled replacement of its prototype member and the analysis around it. D1 denotes the pure multi-prototype replacement head; D2 denotes the input-gated high-offline-AUC replacement head; eco. priors denotes empirical-Bayes ecological priors.}
 \label{tab:ownership}
 \begin{tabular}{lll}
 \toprule
@@ -266,27 +230,53 @@ Matched-control study (App.~\ref{app:partone}) & \textbf{this work} & \textbf{co
 %% ============================================================
 %%  6. PART II: AUTHOR-BUILT HEADS
 %% ============================================================
-\section{Author-Built Prototype Heads}
+\section{Prototype Head Design and Offline Evaluation}
 \label{sec:part2}
 
-\subsection{Setup}
+\subsection{Replacement-head setup}
+\label{sec:headsetup}
 
-We design and train prototype classification heads on frozen Perch v2 embeddings (1,536-d).
-All heads use cosine similarity between normalized prototype vectors and normalized embeddings, scaled by a learnable positive temperature (via softplus), with per-class bias terms.
-Training uses FocalBCE loss~\cite{lin2017focal}, AdamW~\cite{loshchilov2019adamw}, and cosine annealing over 60 epochs.
+We design and train replacement prototype classification heads on frozen Perch v2 embeddings (1,536-d). For an input window $x$, let $z(x)$ denote the frozen Perch embedding and $\ell_c^{\mathrm{Perch}}(x)$ denote the Perch logit for species $c$ when available. Each prototype head contains one or more learned prototypes $p_{c,k}$ assigned to species $c$. With normalized embeddings and prototypes, the prototype activation is
+\[
+  a_{c,k}(x)=\left\langle \frac{z(x)}{\|z(x)\|},\frac{p_{c,k}}{\|p_{c,k}\|}\right\rangle,
+  \qquad
+  a_c(x)=\max_k a_{c,k}(x).
+\]
+The prototype logit is then
+\[
+  h_c(x)=\operatorname{softplus}(\eta_c)\,a_c(x)+b_c,
+\]
+where $\eta_c$ is the learnable temperature parameter and $b_c$ is a per-class bias. For pure prototype heads, $h_c(x)$ is the class score. For fusion heads, the prototype logit is combined with the Perch logit through a convex gate,
+\[
+  q_c(x)=\gamma_c(x)h_c(x)+(1-\gamma_c(x))\ell_c^{\mathrm{Perch}}(x).
+\]
+The static-gate head uses $\gamma_c=\sigma(\alpha_c)$, while D2 uses an input-dependent gate $\gamma_c(x)$. D1 denotes the pure multi-prototype replacement head with interpretability losses; D2 denotes the input-gated high-offline-AUC replacement head.
+
+Training uses FocalBCE loss~\cite{lin2017focal}, AdamW~\cite{loshchilov2019adamw}, and cosine annealing over 60 epochs. When interpretability losses are active, the training objective is
+\[
+  \mathcal{L}=\mathcal{L}_{\mathrm{FocalBCE}}+\lambda_{\mathrm{clust}}\mathcal{L}_{\mathrm{clust}}+\lambda_{\mathrm{sep}}\mathcal{L}_{\mathrm{sep}}.
+\]
+Using cosine distance $d(u,p)=1-\langle u/\|u\|,p/\|p\|\rangle$, the cluster loss pulls each prototype toward windows containing its assigned class, while the separation loss penalizes closeness to confirmed-absent windows for that class. The multi-label-aware separation variant changes only the negative set used by $\mathcal{L}_{\mathrm{sep}}$: in multi-species windows, co-occurring positive species are not treated as negatives for one another.
+
+\subsection{Training folds and model selection}
+\label{sec:modelselection}
+
+For the primary replacement heads and the offline sweeps, each GroupKFold split is trained independently on four file groups and evaluated on the held-out file group. Out-of-fold predictions are concatenated across folds before computing macro-AUC over the 71 covered species. The offline design sweeps are model-development analyses on the same local bank: D2 was selected as the high-offline-AUC replacement head, while D1 was selected as the high-purity pure-prototype comparison. Because the same local bank guided design choices, the offline frontier should be interpreted as a descriptive development result rather than as a completely independent final test. The hidden-test replacement submissions provide the separate deployment check, but those scores are also descriptive because hidden labels are unavailable.
 
 Perch embeddings are strongly species-discriminative: a t-SNE projection of focal recordings (Figure~\ref{fig:embeddings}) shows that different species occupy well-separated regions of the embedding space, which is what makes a single prototype per species a viable starting point.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{fig_embeddings.pdf}
-\caption{t-SNE projection of frozen Perch~v2 embeddings for focal recordings of twelve representative species (eBird/iNat codes); each point is one recording window. Distinct per-species clusters show that the frozen embedding space is highly species-discriminative, which is the basis for single-prototype-per-species heads. Evaluation instead uses noisier multi-species soundscape windows (Section~\ref{sec:mechanism}).}
+\caption{t-SNE projection of frozen Perch~v2 embeddings for focal recordings of twelve representative species (eBird/iNat codes); each point is one recording window. Axes are arbitrary t-SNE coordinates. Distinct per-species clusters show that the frozen embedding space is highly species-discriminative, which is the basis for single-prototype-per-species heads. Evaluation instead uses noisier multi-species soundscape windows (Section~\ref{sec:mechanism}).}
 \label{fig:embeddings}
 \end{figure}
-Full configuration is in Appendix~\ref{app:training}.
-
-Evaluation uses 708 labelled soundscape windows with GroupKFold(5), reporting macro-AUC over the 71 species with positive instances.
-Prototype \textbf{presence-purity} is defined as: for each prototype, whether the nearest soundscape window (by cosine similarity) contains the prototype's assigned class.
+Prototype \textbf{presence-purity} is defined as: for each prototype, whether the nearest soundscape window in the 708-window bank (by cosine similarity) contains the prototype's assigned class. For prototype set $\mathcal{P}$, assigned class $c(p)$, and nearest window $x_p^\star$, we compute
+\[
+  \operatorname{purity}
+  = \frac{1}{|\mathcal{P}|}\sum_{p\in\mathcal{P}}
+  \mathbf{1}\{y_{c(p)}(x_p^\star)=1\}.
+\]
 
 \subsection{Deployed head audit}
 
@@ -298,7 +288,7 @@ ProtoSSMv2 uses 234 class-specific prototypes (one per species, 320-d after inte
 \paragraph{Fusion gate analysis.}
 The learned gate values are flat: $\gamma \approx 0.50$ across all 234 species and all taxa (global std 0.003, range [0.493, 0.507]).
 Table~\ref{tab:gate_taxon} confirms the uniformity.
-The gate never learned to differentiate prototype vs.\ Perch reliance, an honest negative.
+The gate did not differentiate prototype vs.\ Perch reliance in this run, a negative result.
 This stands in contrast to the design motivation (graceful coverage degradation for unmapped species) and suggests the gate may require longer training or stronger initialization to differentiate.
 
 \begin{table}[t]
@@ -325,14 +315,14 @@ Insecta 0.96 $>$ Amphibia 0.88 $>$ Aves 0.64 (Mammalia 0.33, $n{=}3$; Reptilia 0
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{fig_taxon_purity.pdf}
-\caption{Per-taxon prototype purity for AudioProtoPNet (matched-control study, Appendix~\ref{app:partone}; ConvNeXt backbone) vs.\ ProtoSSMv2 (Perch embeddings). The gradients are opposite: AudioProtoPNet is bird-clean; ProtoSSMv2 is insect-clean. The contrast suggests that prototype validity tracks training-domain acoustic properties rather than the prototype mechanism per se. (Insect purity for AudioProtoPNet is coverage-limited; see text.)}
+\caption{Per-taxon prototype purity for AudioProtoPNet (matched-control study, Appendix~\ref{app:partone}; ConvNeXt backbone) vs.\ ProtoSSMv2 (Perch embeddings). The gradients are opposite: AudioProtoPNet is bird-clean; ProtoSSMv2 is insect-clean. The contrast is consistent with prototype validity tracking training-domain acoustic properties rather than the prototype mechanism per se, but the comparison is confounded by backbone, training data, and prototype granularity. Insect purity for AudioProtoPNet is coverage-limited; see text.}
 \label{fig:taxon_purity}
 \end{figure}
 
 This pattern survives a frequency control.
 There is a positive correlation between purity and log-sample-count (Spearman $\rho = 0.30$), but a logistic regression with the log-count covariate retains the taxon effect: Insecta $+1.40$, Aves $-0.71$ (vs.\ Amphibia reference).
 Insect prototypes project cleanly even when the species is rare (purity 1.0 at low sample count), while avian prototypes are frequency-dependent (0.47 for rare birds, 1.0 for common birds).
-This suggests that validity tracks acoustic distinctiveness: insects produce spectrally unique calls that are easy to separate, while birds in a dense avian community overlap spectrally and require more data to differentiate.
+This pattern is consistent with validity tracking acoustic distinctiveness: insects produce spectrally unique calls that are easier to separate, while birds in a dense avian community overlap spectrally and may require more data to differentiate.
 
 \subsection{The offline frontier}
 
@@ -359,7 +349,7 @@ This suggests that validity tracks acoustic distinctiveness: insects produce spe
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{fig_frontier.pdf}
-\caption{The interpretability--accuracy frontier. Each point is a head configuration from Table~\ref{tab:buildup}. Cluster loss buys purity at steep accuracy cost (rows 2$\rightarrow$3). The input-dependent gate recovers accuracy by spending purity (rows 5$\rightarrow$6). Row~5 (static gate + losses) is the only ``free interpretability'' design point. The deployed ProtoSSMv2 sits in the interior of the frontier.}
+\caption{The interpretability--accuracy frontier. Each point is a head configuration from Table~\ref{tab:buildup}. Cluster loss increases purity at steep accuracy cost (rows 2$\rightarrow$3). The input-dependent gate recovers accuracy while reducing purity (rows 5$\rightarrow$6). Row~5 (static gate + losses) is the only design point in this sweep where interpretability is approximately free. The deployed ProtoSSMv2 sits in the interior of the frontier.}
 \label{fig:frontier}
 \end{figure}
 
@@ -369,15 +359,15 @@ We highlight three findings:
 \paragraph{Cluster loss is the interpretability lever.}
 Adding cluster loss (rows 2$\rightarrow$3) buys $+0.254$ purity at $-0.158$ AUC, the single largest effect in the table.
 Separation loss adds only $+0.014$ marginal purity (rows 3$\rightarrow$4).
-We also tested a multi-label-aware separation variant that penalizes proximity only to confirmed-absent species (relevant for soundscapes with co-occurring species that should not be pushed apart); it performs identically to standard separation (AUC 0.605 vs.\ 0.603), an honest negative.
+We also tested a multi-label-aware separation variant that penalizes proximity only to confirmed-absent species (relevant for soundscapes with co-occurring species that should not be pushed apart); it performs similarly to standard separation (AUC 0.605 vs.\ 0.603), a negative result.
 Increasing prototype count from 1 to 3 (row~7) does not help: capacity is not the bottleneck.
 
 \paragraph{The input-dependent gate trades purity for accuracy.}
 Replacing the static gate with an input-dependent gate (rows 5$\rightarrow$6) gains $+0.088$ AUC at $-0.521$ purity.
-The gate learns to lean on the Perch logits, hollowing out the prototype's discriminative role.
+The input gate increases reliance on Perch logits and reduces the prototype's discriminative role.
 We verified this tension is fundamental by building a ``full-spec'' D2 with both interpretability losses \emph{and} the input gate: it scores 0.691 / 0.958.
 The accuracy collapses below even the static gate.
-Accuracy XOR purity: no gated configuration achieves both.
+In these sweeps, no gated configuration achieves both high accuracy and high purity.
 
 \paragraph{Row~5 is the free-interpretability sweet spot.}
 A static-gate fusion with cluster and separation losses (row~5) recovers Perch-level AUC (0.742) while maintaining 0.958 purity, the only design point where interpretability is roughly free.
@@ -386,25 +376,25 @@ However, its absolute accuracy is far below D2 (0.830) or the deployed ProtoSSMv
 \subsection{Design sweeps}
 
 \begin{table}[t]
-\caption{Design sweeps. $\Delta$ relative to each group's baseline (shown in parentheses in header).}
+\caption{Design sweeps. $\Delta$ values are relative to each group's baseline (shown in parentheses in the group header). Pur. denotes prototype presence-purity; a dash indicates that the quantity was not measured for that sweep or is not applicable.}
 \label{tab:sweeps}
 \begin{tabular}{llrr}
 \toprule
-Sweep & Value & $\Delta$AUC & $\Delta$Pur. \\
+Sweep & Value & $\Delta$AUC & $\Delta$purity \\
 \midrule
 \multicolumn{4}{l}{\emph{Pure-proto head (base: .605 / .958)}} \\
 \midrule
-\multirow{2}{*}{Count $K$}
+\multirow{2}{*}{Prototype count $K$}
   & $K{=}3$         & +.001 & .000 \\
   & $K{=}10$        & +.002 & $-.518$ \\
 \midrule
 Projection  & linear 320-d    & +.042 & .000 \\
 \midrule
-Sep.\ loss  & multi-label     & $-.002$ & .000 \\
+Separation loss  & multi-label     & $-.002$ & .000 \\
 \midrule
 \multicolumn{4}{l}{\emph{Gated head (base: .830 / .437)}} \\
 \midrule
-\multirow{2}{*}{Count $K$}
+\multirow{2}{*}{Prototype count $K$}
   & $K{=}3$         & +.003 & +.105 \\
   & $K{=}5$         & +.006 & +.169 \\
 \midrule
@@ -415,7 +405,7 @@ Gate type   & static scalar   & $-.088$ & +.521 \\
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:sweeps} reports additional design sweeps; full per-$K$ tables are in Appendix~\ref{app:sweeps}.\footnote{The sweep tables are an independent re-run from the build-up experiment; for the shared $K{=}1$ configuration they differ from Table~\ref{tab:buildup} by $\le$0.003 AUC and $\le$0.015 purity, within seed variation.}
+Table~\ref{tab:sweeps} reports additional design sweeps.
 Two contrasting patterns emerge:
 on the pure-prototype head, increasing $K$ leaves AUC flat while per-prototype purity collapses (0.958 to 0.440), as extra prototypes dilute discriminative signal;
 on the gated head, $K$ mildly improves both AUC ($+0.006$ at $K{=}5$) and purity ($+0.169$), because the gate can selectively attend to the best prototype.
@@ -453,13 +443,14 @@ The accuracy-gain gradient is orthogonal to the purity gradient (Insecta-cleanes
 \label{sec:leaderboard}
 
 \begin{table}[t]
-\caption{Leaderboard evaluation. Each head replaces ProtoSSMv2 in the deployed Proto+SED core, scored on the hidden test via late submission. Aux CNN members disabled uniformly (inference budget). $\Delta$ = private score relative to ProtoSSMv2.}
+\caption{Leaderboard evaluation. Each row replaces or ablates the prototype member in the deployed Proto+SED core and is scored on the hidden test. Auxiliary CNN members are disabled uniformly. D1 is the pure prototype head; D2 is the input-gated head; no-SSM ablates the deployed head's temporal module; cov-gated uses prototype scores only for species covered by the offline bank; Drop uses raw Perch logits in place of the prototype member. $\Delta$ = private macro-AUC minus the ProtoSSMv2 baseline; negative values are worse.}
 \label{tab:leaderboard}
 \begin{tabular}{lccrc}
 \toprule
 Head & Off. & Pub. & Priv. & $\Delta$ \\
 \midrule
 ProtoSSMv2          & .803 & .949 & \textbf{.942} & -- \\
+ProtoSSMv2 no-SSM   & --   & .948 & .941 & $-.001$ \\
 D1 cov-gated        & .606 & .944 & .940 & $-.003$ \\
 ProtoSSMv2 cov-g.   & .803 & .946 & .940 & $-.003$ \\
 D2 re-weighted      & .830 & .942 & .939 & $-.003$ \\
@@ -472,36 +463,42 @@ D2-FOCAL            & --  & .939 & .935 & $-.007$ \\
 \end{tabular}
 \end{table}
 
+
+\begin{table}[t]
+\caption{Primary replacement summary. This table separates the main deployment comparison from exploratory rescue variants. Offline AUC is the covered-species OOF endpoint; private AUC is the hidden-test deployment endpoint.}
+\label{tab:primary_summary}
+\begin{tabular}{lccc}
+\toprule
+System & Offline AUC & Private AUC & Role \\
+\midrule
+ProtoSSMv2          & .803 & .942 & deployed reference \\
+ProtoSSMv2 no-SSM   & --   & .941 & temporal-module ablation \\
+Drop (Perch)        & .739 & .939 & no-prototype baseline \\
+D1 pure             & .606 & .938 & high-purity replacement \\
+D2 input-gated      & .830 & .937 & high-offline-AUC replacement \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{fig_oof_vs_lb.pdf}
-\caption{Offline OOF AUC (x-axis) vs.\ private leaderboard (y-axis) for all evaluated heads. Higher offline accuracy does not produce a higher deployment score: D2 (highest offline AUC, 0.830) is among the lowest on the leaderboard, while the deployed ProtoSSMv2 (middling offline AUC) is highest. The coverage-gated and re-weighted rescue variants (green triangles) cluster at similar leaderboard scores despite spanning the full offline-AUC range. The component ranking reverses direction (the absolute gaps are small; see Section~\ref{sec:limitations}).}
+\caption{Offline OOF AUC (x-axis) vs.\ private leaderboard (y-axis) for variants with an offline OOF endpoint. Higher offline accuracy does not produce a higher deployment score: D2 (highest offline AUC, 0.830) is among the lowest on the leaderboard, while the deployed ProtoSSMv2 (middling offline AUC) is highest. The no-SSM temporal ablation has no separately computed offline endpoint and is therefore omitted from this scatter. The component ranking reverses direction (the absolute gaps are small; see Section~\ref{sec:limitations}).}
 \label{fig:inversion}
 \end{figure}
 
-We swapped each head into the deployed Proto+SED pipeline core and scored on the hidden test via nine late submissions.
-The full 4-member pipeline timed out on late re-runs, so all variants use the 2-way core (aux CNNs disabled uniformly; only the proto member differs).
-Table~\ref{tab:leaderboard} and Figures~\ref{fig:inversion} and~\ref{fig:lbbars} report the results.
-We distinguish our two \emph{primary} heads (D1, the pure prototype head; D2, the input-gated head) from \emph{rescue} interventions (coverage-gating, re-weighting, and broad focal retraining; Section~\ref{sec:mechanism}); ``author-built heads'' below refers to the two primary heads. The rescue variants recover to approximately the raw-Perch floor (0.938--0.940; D1 coverage-gating marginally exceeds it at 0.940) but none reaches the deployed head (0.942).
+Table~\ref{tab:leaderboard} reports the hidden-test replacement results, and Table~\ref{tab:primary_summary} isolates the primary comparison. Each row corresponds to one submitted system generated by replacing or ablating the prototype-head artifact while leaving the rest of the Proto+SED core unchanged. Hidden-test labels are unavailable, so we cannot compute per-species confidence intervals or paired statistical tests for these scores. The leaderboard results are therefore descriptive system-level outcomes.
 
-Our pre-registered prediction (D2 $\geq$ baseline $>$ drop $>$ D1) did not hold: D2, predicted strongest, ranked last.
-Three findings are robust across both public and private splits:
+The primary comparison is between the deployed ProtoSSMv2 member, the two primary replacement heads (D1 pure and D2 input-gated), and the raw-Perch Drop baseline. The deployed ProtoSSMv2 member has the highest private score (0.942). The raw-Perch Drop baseline scores 0.939. The two primary replacement heads score below the Drop baseline: D1 scores 0.938 and D2 scores 0.937.
 
-\paragraph{1.\ The deployed head is best.}
-ProtoSSMv2 outperforms dropping the prototype member by $+0.003$ private, the prototype component genuinely helps the deployed system.
+The offline ranking does not transfer to deployment. D2 has the highest offline AUC among the replacement heads (0.830), but it is the lowest primary replacement on the hidden test. D1 has much lower offline AUC (0.606) but slightly higher private score than D2 (0.938 vs. 0.937). These gaps are small and rest on a single hidden test (Section~\ref{sec:limitations}), but the direction is consistent across public and private splits.
 
-\paragraph{2.\ Both primary heads underperform raw Perch.}
-Swapping in either primary head (D1 pure or D2 input-gated) produces worse results than removing the prototype member entirely.
-Heads that appear competitive or superior offline actively hurt the deployed system.
-
-\paragraph{3.\ Offline accuracy does not predict the leaderboard.}
-D2, with the highest offline AUC (0.830), ranks among the lowest on both splits.
-The offline component ranking does not merely fail to predict deployment; it reverses direction. The absolute gaps are small and rest on a single hidden test (Section~\ref{sec:limitations}), but the direction is consistent across the public and private splits.
+The exploratory rescue variants recover only part of the gap. Coverage-gating and re-weighting cluster near the raw-Perch floor (0.938--0.940), and none reaches the deployed ProtoSSMv2 score. The temporal-module ablation provides a separate diagnostic: removing the deployed head's temporal SSM lowers private AUC from 0.94218 to 0.94089, but the ablated deployed head still ranks above the raw-Perch Drop baseline and both primary replacement heads. Section~\ref{sec:mechanism} analyzes these patterns.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{fig_lb_bars.pdf}
-\caption{Private leaderboard scores for all nine head variants. The deployed ProtoSSMv2 outperforms every alternative, including raw Perch (drop). D2-FOCAL (broad-trained on focal+soundscape data) scores worst.}
+\caption{Private leaderboard scores for all ten system variants. The deployed ProtoSSMv2 outperforms every replacement, ablation, and rescue variant. The no-SSM ablation is second-best, indicating that temporal aggregation contributes to the deployed head but does not explain its full advantage. D2-FOCAL (broad-trained on focal+soundscape data) scores worst. The y-axis is zoomed to show ordering; absolute score gaps are small.}
 \label{fig:lbbars}
 \end{figure}
 
@@ -513,7 +510,7 @@ The offline component ranking does not merely fail to predict deployment; it rev
 \label{sec:mechanism}
 
 The offline-to-deployment inversion requires explanation.
-We decompose it through a diagnostic, two targeted controls, and a capstone experiment.
+We decompose it through an absent-species diagnostic, coverage-gating controls, a temporal-module ablation, and a broad-training sensitivity experiment.
 
 \subsection{Diagnostic: the absent-species problem}
 
@@ -531,20 +528,37 @@ Absent (163)      & 0.767 & 0.276 & 0.347 \\
 \end{table}
 
 Our training bank covers 71 of 234 species.
-Table~\ref{tab:mechanism} shows that D2's input-dependent gate stays at $\gamma \approx 0.77$ even on the 163 absent species, overwriting Perch's discriminative scores with a flat, untrained prototype signal.
-Only approximately 35\% of Perch's score variance survives for absent species (vs.\ 49\% for covered species).
-Since the competition metric weights all 234 species equally, this dampening on 70\% of species creates the macro-AUC drag.
+Table~\ref{tab:mechanism} shows that D2's input-dependent gate stays at $\gamma \approx 0.77$ even on the 163 absent species, reducing Perch's discriminative scores with a flat, untrained prototype signal. Correlations and variance ratios are computed over species within each coverage group $G$; for D2 scores $s^{\mathrm{D2}}$ and Perch scores $s^{\mathrm{Perch}}$, we report
+\[
+  \operatorname{VarRatio}_G =
+  \frac{\operatorname{Var}_{c\in G}(s_c^{\mathrm{D2}})}
+       {\operatorname{Var}_{c\in G}(s_c^{\mathrm{Perch}})}.
+\]
+Only approximately 35\% of Perch's score variance survives for absent species (vs.\ 49\% for covered species). Because macro-AUC averages over evaluable species in the hidden test, degradation across many target classes can affect the deployment score even when those classes are absent from the offline bank.
 
 \subsection{Control 1: Coverage-gating}
 
-We applied coverage-gating, using the prototype head for covered species and raw Perch logits for absent ones.
+We applied coverage-gating, using the prototype head for covered species and raw Perch logits for absent ones:
+\[
+S_c =
+\begin{cases}
+S_c^{\mathrm{proto}}, & c \in \mathcal{C}_{\mathrm{covered}},\\
+S_c^{\mathrm{Perch}}, & c \notin \mathcal{C}_{\mathrm{covered}}.
+\end{cases}
+\]
 This improved both heads on both splits:
 D1 rose from 0.938 to 0.940 ($+0.002$), D2 from 0.937 to 0.938 ($+0.001$).
-The absent-species drag is confirmed.
+This pattern is consistent with absent-species degradation contributing to the deployment gap.
 However, both heads recovered only to the Perch floor ($\approx$0.939), the score achieved by dropping the prototype member entirely.
 Coverage-gating is necessary but not sufficient to match the deployed head.
 
-\subsection{Control 2: The deployed head preserves signal on absent species}
+\subsection{Control 2: Temporal aggregation explains part, not all, of the deployed-head advantage}
+
+Because the deployed prototype member uses a temporal SSM while the primary replacement heads are window-level models, we also ablated the deployed head's temporal module. Removing the bidirectional SSM and associated temporal aggregation reduced private macro-AUC from 0.94218 to 0.94089 (Table~\ref{tab:leaderboard}). Thus, temporal aggregation contributes measurably to the deployed head's score.
+
+However, the no-SSM ablation remains above the raw-Perch Drop baseline (0.941 vs.\ 0.939) and above both primary replacement heads (0.938 and 0.937). Temporal modeling therefore explains part of the deployed head's edge, but not all of it. The remaining advantage must come from non-temporal architectural or training differences, including how the deployed head preserves foundation-model signal across the full label space.
+
+\subsection{Control 3: The deployed head preserves signal on absent species}
 
 Coverage-gating the deployed ProtoSSMv2 itself \emph{hurt} it: $0.942 \rightarrow 0.940$.
 This is unexpected: restricting the prototype to covered species should help if absent species are handled poorly.
@@ -553,24 +567,22 @@ Decomposing ProtoSSMv2's $+0.003$ edge over raw Perch:
 only $+0.0003$ comes from covered species;
 $+0.0026$ comes from absent ones.
 Approximately 90\% of the deployed head's advantage over raw Perch is concentrated on the species it never saw training positives for: there it preserves more of Perch's discriminative signal, whereas our linear heads dampen it, the opposite pattern.
-We attribute this to the bidirectional residual SSM~\cite{gu2024mamba}, which apparently learns representations that transfer across the full label space. This attribution is correlational, however: ProtoSSMv2 differs from our heads in capacity and temporal structure as well as in this component (Section~\ref{sec:limitations}), and isolating the SSM would require a matched-capacity ablation.
+Together with the no-SSM ablation, this result suggests a multi-causal gap. Temporal aggregation accounts for a measurable part of the deployed head's advantage, but absent-species signal preservation remains after the temporal module is removed. The comparison to our lower-capacity heads remains confounded by architecture, capacity, and training procedure, so we do not attribute the reversal to temporal aggregation alone (Section~\ref{sec:limitations}).
 
 \subsection{Capstone: Broad training backfires}
 
-The natural fix for the coverage gap is to train on more species.
+We next tested whether broader species coverage during training improves deployment performance.
 We built D2-FOCAL: the gated head trained on the combined bank, the 708 soundscape windows plus focal recordings spanning 206 species, broadening coverage well beyond the 71 soundscape-labelled species.
 We first verified that our local Perch extraction reproduces the deployed one exactly (embedding correlation 1.000000 on the 708-window bank), then embedded focal recordings across 206 species (5,090 windows, top-2 per species by logit confidence) and trained on the combined bank.
 
 D2-FOCAL scored worst of all variants: private 0.935.
 The focal recordings are off-domain relative to the soundscape test set, and 5,090 focal windows swamped the 708 on-domain ones.
 Prototypes became focal-centric, matching the deployment distribution less well.
-Broadening training data across the focal$\rightarrow$soundscape domain boundary, with this particular focal-heavy recipe, worsened performance. We tested only one recipe; balanced focal/soundscape sampling, domain weighting, or pseudo-labeling on the target distribution might recover the gap and remain untested.
+Broadening training data across the focal$\rightarrow$soundscape domain boundary, with this particular focal-heavy recipe, reduced performance. We tested only one recipe; balanced focal/soundscape sampling, domain weighting, or pseudo-labeling on the target distribution might recover the gap and remain untested.
 
 \subsection{Summary}
 
-The deployed head's advantage is twofold: on-domain soundscape training (shared with our heads) and an architecture that preserves useful signal across the full label space (which we attribute to the SSM, though the comparison is capacity-confounded; see Section~\ref{sec:limitations}).
-Our linear heads did not replicate the latter.
-Neither coverage-gating (recovering only to the Perch floor) nor broad off-domain training (actively backfiring) closes the gap.
+The deployed head's advantage is consistent with multiple small factors. Coverage-gating shows that absent-species degradation contributes to the deployment gap, while the no-SSM ablation shows that temporal aggregation also contributes. Neither factor alone explains the full difference: coverage-gating recovers only to the Perch floor, and the no-SSM deployed head still beats both primary replacements. The tested broad off-domain training recipe reduces performance rather than closing the gap.
 
 
 %% ============================================================
@@ -582,44 +594,59 @@ Neither coverage-gating (recovering only to the Perch floor) nor broad off-domai
 \section{Supporting Study: Prototype Interpretability in a Controlled Setting}
 \label{sec:validity}
 
-The reversal above concerns whether an interpretable component \emph{transfers} to deployment, not whether prototypes can be valid at all. We checked the latter in a clean, single-backbone setting: a faithful AudioProtoPNet head~\cite{heinrich2025audioprotopnet} versus an identical sigmoid baseline on a shared ConvNeXt-Base backbone, 5-fold. The prototype head costs near-zero macro accuracy (macro $\Delta = -0.007$, 95\% CI spanning zero), with only a small, robust avian cost ($-0.011$). Its prototypes are class-pure for birds (0.951 versus a 0.006 null) and \emph{call-focused} rather than background-matching: their nearest patches avoid the low-energy tercile at every tested cutoff (a shortcut-rate test). So in a controlled setting prototype interpretability is close to free and behaves sensibly, which is precisely why the deployment reversal is notable: component validity in isolation did not predict deployment value. The full design, per-fold deltas, CPU-feasibility check, a cross-fold pooling-artifact note, and the taxon breakdown are in Appendix~\ref{app:partone}.
+The reversal above concerns whether an interpretable component \emph{transfers} to deployment, not whether prototypes can be valid at all. We checked the latter in a clean, single-backbone setting: a faithful AudioProtoPNet head~\cite{heinrich2025audioprotopnet} versus an identical sigmoid baseline on a shared ConvNeXt-Base backbone, 5-fold. The prototype head costs near-zero macro accuracy (macro $\Delta = -0.007$, 95\% CI spanning zero), with only a small, robust avian cost ($-0.011$). Its prototypes are class-pure for birds (0.951 versus a 0.006 null) and \emph{call-focused} rather than background-matching: their nearest patches avoid the low-energy tercile at every tested cutoff (a shortcut-rate test). So in a controlled setting prototype interpretability is close to free and behaves sensibly, which is precisely why the deployment reversal is notable: component validity in isolation did not predict deployment value. A compact version of this matched-control study is provided in Appendix~\ref{app:partone}.
+
 
 
 \section{Discussion}
 \label{sec:discussion}
 
-\paragraph{The component--system gap.}
-Our central finding is that component-level interpretability evaluation does not predict system-level deployment performance.
-Among the two primary heads, the higher-offline-accuracy one (D2 input-gated, offline 0.830) ranks worst in the deployed system (private 0.937).
-This gap arises because the component operates inside a pipeline where its behavior on untrained species, its interaction with other members, and the domain match of its training data all affect the outcome, none of which offline evaluation captures.
+\paragraph{Direct finding.}
+The main observed result is an offline-to-deployment ranking failure under controlled replacement.
+Inside the fixed ProtoSSMv2+SED core, the deployed prototype member remains best on the hidden private split, while both primary author-built replacement heads fall below the raw-Perch drop baseline.
+This result is descriptive rather than inferential, because hidden-test labels are unavailable for paired testing, but it is the central empirical observation of the study.
 
-This finding has implications beyond BirdCLEF.
-Other settings where an interpretable component is evaluated in isolation and then deployed inside a larger system may be susceptible to the same effect, though we demonstrate it in only one pipeline.
+\paragraph{Interpretation: partial-label evaluation exposes unmeasured failure modes.}
+The proposed explanation is that the offline bank evaluates only the 71 species with positives in the labelled soundscape bank, while the deployment system must rank the broader 234-species target space.
+The mechanism diagnostics support this interpretation in two ways.
+First, D2 dampens Perch score variation more strongly on species absent from the offline bank than on covered species.
+Second, coverage-gating the author-built heads improves hidden-test performance, indicating that some deployment loss comes from using prototype scores for species with no offline positives.
+These findings do not prove that label coverage is the only mechanism; rather, they show that partial-label evaluation can hide damage on classes it never evaluates.
 
-\paragraph{Interpretability is design-point-specific.}
-The matched-control study (Appendix~\ref{app:partone}) shows that faithful AudioProtoPNet costs near-zero accuracy on ConvNeXt.
-The Perch-based heads show this does not generalize: the static-gate fusion (row~5) is the only design where interpretability is roughly free, and its absolute accuracy (0.742) is far below the deployed head.
-The ``free interpretability'' result is real but fragile: it depends on the specific architecture, backbone, and pre-training.
+\paragraph{Temporal aggregation and architecture are partial contributors.}
+The no-SSM ablation sharpens the mechanism claim.
+Removing the deployed head's temporal module reduces private macro-AUC from 0.94218 to 0.94089, so temporal aggregation contributes to the deployed head's advantage.
+However, the ablated deployed head still outranks both primary replacement heads and the raw-Perch drop baseline.
+The deployment gap is therefore multi-causal: coverage handling, temporal aggregation, and remaining architectural differences each contribute to the final ranking.
+The present evidence supports partial-label blindness as a failure mode, but it does not isolate every architectural factor in ProtoSSMv2.
 
-\paragraph{Two orthogonal taxon gradients.}
-AudioProtoPNet's bird-centric pre-training produces a bird-clean gradient (Aves 0.951 $>$ Amphibia 0.562).
-ProtoSSMv2's soundscape training produces the opposite gradient (Insecta 0.96 $>$ Aves 0.64).
-We hypothesize that prototype validity may track training domain and acoustic distinctiveness rather than the prototype mechanism per se; because the comparison across the two settings is confounded (Section~\ref{sec:limitations}), we cannot establish this as a mechanism.
+\paragraph{Interpretable components must be evaluated as deployed components.}
+The matched-control study (Appendix~\ref{app:partone}) shows that prototype explanations can be class-pure and call-focused in a cleaner single-backbone setting.
+That result narrows the interpretation of the main failure: the problem is not that prototype explanations are inherently invalid, but that a locally interpretable component can still reduce deployment performance when it is selected using an incomplete offline label space.
+For systems like BirdCLEF+ 2026, interpretability and deployment value are therefore separate endpoints.
+A component can be more interpretable, or better on the covered offline bank, without improving the full system.
 
-\paragraph{Negative results.}
-We document several design hypotheses that failed:
-\begin{itemize}
-  \item The multi-label-aware separation loss performs identically to standard separation (0.605 vs.\ 0.603);
-  \item ProtoSSMv2's per-class gate never differentiated coverage ($\gamma \approx 0.50$ uniformly);
-  \item Increasing prototype count ($K{=}1 \rightarrow 10$) does not improve pure-head accuracy;
-  \item Broad training with focal recordings worsened deployment by $-0.007$;
-  \item The pre-registered leaderboard prediction did not hold.
-\end{itemize}
+\paragraph{Taxon gradients are suggestive, not causal evidence.}
+AudioProtoPNet's bird-centric pre-training produces a bird-clean purity gradient, while ProtoSSMv2's soundscape-trained Perch-based prototypes are cleaner for insects.
+This contrast is consistent with the idea that prototype validity depends on training domain and acoustic distinctiveness.
+However, the comparison is confounded by backbone, embedding space, training data, and prototype granularity.
+We therefore treat the opposite taxon gradients as hypothesis-generating rather than as evidence for a causal taxon- or domain-level mechanism.
 
 \paragraph{Practical recommendations.}
-(i)~Do not assume offline component evaluations predict deployment; test end-to-end.
-(ii)~Verify prototype behavior on untrained species or apply coverage-gating.
-(iii)~Be cautious broadening training across domain boundaries.
+Three recommendations follow directly from the observed replacement results.
+First, report label coverage for any offline component benchmark; otherwise, offline gains may be driven by a subset of classes that does not represent deployment.
+Second, evaluate interpretable components inside the full system at least once, because component-level metrics do not capture interactions with rank fusion, foundation-model logits, or post-processing.
+Third, when a component is trained on a subset of the deployment label space, include absent-class diagnostics or coverage-gated controls to check whether the component damages classes the offline metric cannot score.
+These recommendations are scoped to BirdCLEF-style multi-label bioacoustic systems and should be tested in additional pipelines.
+
+\paragraph{Negative results.}
+Several negative results constrain the interpretation of the study.
+The multi-label-aware separation loss performs similarly to standard separation.
+ProtoSSMv2's per-class gate remains nearly uniform rather than learning an obvious coverage-aware allocation.
+Increasing prototype count improves neither pure-head accuracy nor deployment performance.
+Broad focal-heavy training worsens deployment in the tested recipe.
+Finally, the initial expectation that the high-offline-AUC D2 head would transfer best to the leaderboard does not hold.
+Together, these negative results suggest that the failure is not fixed by a single local design change.
 
 
 %% ============================================================
@@ -628,27 +655,74 @@ We document several design hypotheses that failed:
 \section{Limitations}
 \label{sec:limitations}
 
-The matched-control study (Appendix~\ref{app:partone}) uses 6 training epochs; the original AudioProtoPNet uses 20.
-Longer training might reveal accuracy differences not captured here, particularly for the prototype head's regularization losses which may need more epochs to shape the latent space.
+\subsection{Statistical conclusion validity}
 
-Our offline evaluation operates on 708 labelled soundscape windows covering 71 of 234 species.
-Confidence intervals are correspondingly wide: D2 vs.\ ProtoSSMv2 is not statistically significant offline.
-The nine late leaderboard submissions partially compensate, evaluating on the full hidden test with all 234 species, but both splits derive from the same hidden test without independent replication.
+The offline evaluation uses 708 labelled soundscape windows from 59 files and covers only 71 of 234 target species.
+This limits precision: fold-level uncertainty is wide, and the offline D2--ProtoSSMv2 difference should be interpreted descriptively rather than as a statistically secure ordering.
+The hidden-test replacement results are also descriptive.
+Kaggle returns one aggregate public score and one aggregate private score per submission, and hidden labels are unavailable, so we cannot compute paired tests, per-species confidence intervals, or submission-level p-values.
+The public and private splits are not independent replications; they are two partitions of the same hidden evaluation source.
+For these reasons, we present the leaderboard reversal as a documented case study in this pipeline rather than as a statistically established universal effect.
 
-The comparison between AudioProtoPNet (matched-control study; ConvNeXt backbone, patch-level prototypes) and the Perch-based heads (window-level prototypes) is confounded by backbone, embedding space, training data, and prototype granularity.
-The opposite taxon gradients are suggestive of a domain-vs-distinctiveness interaction, but a controlled demonstration would require training both architectures on the same backbone, which we leave for future work.
+\subsection{Internal validity}
 
-The absolute leaderboard differences are small: the full range across the nine variants is approximately 0.007 macro-AUC, and the deployed-versus-author-head gaps are 0.003--0.005. Kaggle returns a single score per submission with no confidence interval, and the public and private splits derive from the same hidden test. The direction of the effect is consistent across both splits, so we treat the ranking reversal as a consistent, documented failure case in this pipeline rather than a statistically established or universal result.
+The controlled replacement design holds the ProtoSSMv2+SED core fixed and changes only the prototype member artifact, which reduces system-level confounding.
+However, the replacement heads and the deployed ProtoSSMv2 member still differ in architecture, capacity, training procedure, and temporal structure.
+The no-SSM ablation partially isolates temporal aggregation and shows that it contributes about 0.0013 private macro-AUC, but it does not isolate all non-temporal architectural differences.
+The ablated deployed head still outperforms the raw-Perch drop baseline and both primary replacement heads, so the remaining advantage is confounded with capacity, fusion design, and other implementation choices.
+A fully matched causal test would require training heads with matched capacity and identical temporal aggregation under the same data regime.
 
-Our heads and ProtoSSMv2 differ in more than the property we emphasize: ProtoSSMv2 adds a per-class fusion gate and a bidirectional residual SSM over temporal windows, whereas our heads are linear and window-level. Its stronger preservation of signal on absent species is therefore confounded with capacity and temporal structure, and attributing it specifically to the SSM would require a matched-capacity ablation (for example, ProtoSSMv2 without the SSM, or an author head with the same temporal aggregator).
+\subsection{Construct validity}
 
-Our presence-purity metric is a weak interpretability proxy: on multi-label soundscape windows it only verifies that the nearest window contains the assigned class, which a prototype could satisfy by matching co-occurring species, background, or recording conditions rather than the target call. The call-energy shortcut-rate of the matched-control study is a stronger signal; corroborating presence-purity with nearest-neighbor spectrogram or audio panels and energy-overlap checks is future work.
+Presence-purity is a weak proxy for interpretability in multi-label soundscapes.
+It verifies only that the nearest window contains the assigned class; it does not prove that the prototype matched the target call rather than a co-occurring species, background texture, recording condition, or correlated acoustic event.
+The matched-control AudioProtoPNet study uses a stronger shortcut-rate check based on call energy, but that analysis is performed in a cleaner supporting setting rather than in the full deployed ProtoSSMv2 system.
+Future interpretability validation should pair presence-purity with nearest-neighbor spectrogram panels, audio inspection, energy-overlap checks, and ideally expert review.
 
-Finally, our broad-training test (D2-FOCAL) used a single focal-heavy recipe in which 5,090 focal windows swamped 708 on-domain ones. We therefore cannot conclude that broader training in general fails to recover the gap; balanced focal/soundscape sampling, domain weighting, pseudo-labeling on the target distribution, and species-held-out validation remain untested.
+\subsection{External validity}
 
-The deployment testbed is adopted unchanged from public Kaggle notebooks~\cite{protossmv2}; the prototype heads are the sole author-designed, author-trained component.
-We are transparent about this distinction throughout.
+The results come from one BirdCLEF+ 2026 deployment pipeline and one competition hidden test.
+The central lesson is therefore scoped: partial-label offline evaluation can mis-rank an interpretable component in this BirdCLEF-style system.
+We do not claim that prototype heads generally fail, that temporal aggregation is always necessary, or that the same ranking reversal will occur in other bioacoustic datasets.
+The broad-training result is also limited: D2-FOCAL used one focal-heavy recipe in which 5,090 focal windows outweighed 708 on-domain soundscape windows.
+Balanced focal/soundscape sampling, domain weighting, pseudo-labeling on target soundscapes, and species-held-out validation remain untested.
 
+\subsection{Supporting-study limitations}
+
+The matched-control AudioProtoPNet study uses 6 training epochs, whereas the original AudioProtoPNet training used 20.
+Longer training could reveal accuracy differences not captured here, especially for prototype regularization losses that may require more time to shape the latent space.
+This limitation affects only the supporting AudioProtoPNet control and not the main ProtoSSMv2+SED replacement experiments.
+The comparison between AudioProtoPNet and the Perch-based heads is also confounded by backbone, embedding space, training data, and prototype granularity.
+The opposite taxon gradients are therefore suggestive, not causal evidence.
+
+\subsection{Reproducibility and artifact limits}
+
+The deployment testbed is adopted unchanged from public Kaggle notebooks~\cite{protossmv2}; only the replacement prototype heads and analyses are author-designed.
+The repository linked below is intended to document the replacement-head code, evaluation notebooks, and deployment-substitution workflow.
+However, hidden-test labels are not public, so leaderboard scores cannot be recomputed outside the Kaggle evaluation system.
+Any future public release should therefore separate fully reproducible offline analyses from leaderboard rows that can only be verified through the original submission environment.
+
+
+%% ============================================================
+%%  FUTURE WORK
+%% ============================================================
+\section{Future Work}
+\label{sec:future}
+
+The next step is not simply to add more replacement heads, but to isolate the mechanisms identified above in a prioritized sequence.
+First, a matched-capacity temporal ablation should compare four conditions: deployed ProtoSSMv2, ProtoSSMv2 without temporal aggregation, an author-built head with matched capacity but no temporal aggregation, and the same author-built head with the deployed temporal aggregator.
+This would separate temporal structure from capacity and fusion design.
+
+Second, broader training should be revisited with controlled domain balance rather than the focal-heavy D2-FOCAL recipe.
+The most direct follow-up is a small grid over focal/soundscape sampling ratios, with species-held-out validation and a target-soundscape pseudo-labeling condition.
+This would test whether broader species coverage helps once focal recordings no longer swamp on-domain soundscapes.
+
+Third, interpretability validation should move beyond presence-purity.
+For each prototype family, nearest-neighbor spectrogram and audio panels should be paired with energy-overlap or call-localization checks, and a small expert-reviewed subset would help distinguish target-call matches from co-occurrence or background matches.
+
+Fourth, the partial-label evaluation failure should be replicated in other BirdCLEF-style systems.
+The key replication test is whether a component selected on a partially covered offline bank also damages absent or weakly covered classes after system-level deployment.
+If the same pattern appears across backbones, teams, or years, the result would support a general evaluation warning rather than a single-pipeline case study.
 
 %% ============================================================
 %%  11. CONCLUSION
@@ -656,17 +730,24 @@ We are transparent about this distinction throughout.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We used a public BirdCLEF+ 2026 pipeline (private macro-AUC 0.942, 163rd place) as a fixed deployment testbed and replaced its prototype member with author-built prototype heads.
+We used a fixed BirdCLEF+ 2026 ProtoSSMv2+SED core with private macro-AUC 0.942 as a deployment testbed and replaced its prototype member with author-built prototype heads.
 A matched-control study (Appendix~\ref{app:partone}) confirms that faithful AudioProtoPNet provides interpretability at near-zero accuracy cost, with prototypes class-pure and call-focused for birds but degrading for more distant taxa.
 Our author-built heads map an offline interpretability--accuracy frontier and, most importantly, show that this offline ranking fails to transfer to the real leaderboard, reversing direction consistently across the public and private splits (the absolute gaps are small; see Section~\ref{sec:limitations}).
-A mechanism decomposition indicates that the reversal arises because the deployed head preserves more of the foundation model's signal on untrained species (which we attribute to its SSM) while our linear heads dampen the foundation model's signal on them, and our one attempt to close the gap through broader, focal-heavy training backfired due to domain shift.
+A mechanism decomposition indicates that the reversal is associated with preservation of foundation-model signal on offline-absent species: the deployed head preserves more of this signal, while our linear heads dampen it. A no-SSM ablation shows that temporal aggregation contributes to the deployed head's advantage but does not fully explain it. Our one attempt to close the gap through broader, focal-heavy training reduced performance, consistent with a focal-to-soundscape domain mismatch.
 
 The lesson is concrete and scoped: in this BirdCLEF-style system, a partial-label offline bank mis-ranked an interpretable component because deployment scored a broader label space, and the component's interaction with the rest of the pipeline amplified the effect.
 Whether a prototype head is ``interpretable'' and whether it helps the deployed system are different questions, with opposite answers here.
-We suggest that component evaluations for such systems report label coverage, behavior on absent classes, and at least one system-level replacement test, rather than relying on a partial offline ranking alone.
+We suggest that component evaluations for such systems report label coverage, behavior on absent classes, and at least one system-level replacement test, rather than relying on a partial offline ranking alone. This recommendation is based on a single pipeline case study and should be tested in additional BirdCLEF-style systems.
 
 
 
+
+%% ============================================================
+%%  CODE AVAILABILITY
+%% ============================================================
+\section*{Code Availability}
+
+Supporting code and experiment artifacts for this working note are available at \url{https://github.com/Sonoform-Labs/BirdClef}. The repository documents the replacement-head training code, evaluation notebooks, figure-generation scripts, leaderboard-row metadata, and deployment-substitution workflow used for the offline tables and hidden-test replacement rows. Hidden-test labels are not public, so the leaderboard scores can be verified only through the original Kaggle evaluation environment.
 
 %% ============================================================
 %%  ACKNOWLEDGMENTS
@@ -677,13 +758,6 @@ We acknowledge the public Kaggle notebook community, particularly hideyukizushi,
 We also thank the developers of the open-source tools used in this work: PyTorch~\cite{paszke2019pytorch}, Perch~\cite{ghani2023global}, BirdSet~\cite{rauch2024birdset}, and AudioProtoPNet~\cite{heinrich2025audioprotopnet}.
 \end{acknowledgments}
 
-
-%% ============================================================
-%%  DECLARATION ON GENERATIVE AI
-%% ============================================================
-\section*{Declaration on Generative AI}
-
-During the preparation of this work, the author used Anthropic's Claude as an AI assistant within an agent-based workflow. The author defined the research questions, designed the experimental protocol, made all final decisions, and reviewed and validated every reported result, table, and claim, and takes full responsibility for the content. Under that direction, the assistant implemented code, executed experiments (model training, ablation sweeps, leaderboard-submission preparation, and statistical testing), assisted with literature search, and drafted manuscript text; all generated code and text were inspected and edited by the author. We disclose this in the interest of transparency and auditability.
 
 
 %% ============================================================
@@ -699,235 +773,13 @@ During the preparation of this work, the author used Anthropic's Claude as an AI
 \section{AudioProtoPNet Matched-Control Study}
 \label{app:partone}
 
-\subsection{Matched-control design}
+We include a small matched-control study to check whether the main deployment failure should be interpreted as a general failure of prototype explanations. We compare an AudioProtoPNet-style prototype head, implemented following the official BirdSet repository,\footnote{\url{https://github.com/DBD-research-group/BirdSet}} against a sigmoid classification head on the same ConvNeXt-Base backbone pretrained on BirdSet-XCL~\cite{liu2022convnext,rauch2024birdset}. Both models use the same folds, input representation, optimizer, augmentations, and evaluation protocol; only the classification head differs.
 
-We evaluate the accuracy cost and validity of prototype interpretability using a matched-control design.
-A faithful AudioProtoPNet head, lifted verbatim from the official repository\footnote{\url{https://github.com/DBD-research-group/BirdSet}}, is compared against a sigmoid baseline on a shared ConvNeXt-Base backbone (BirdSet-XCL pretrained~\cite{liu2022convnext, rauch2024birdset}).
-Both conditions share identical configurations:
-\begin{itemize}
-  \item Input: 128-mel log-spectrogram, 5\,s at 32\,kHz, z-normalized;
-  \item Cross-validation: 5 folds, stratified by species, grouped by file;
-  \item Augmentation: gain perturbation ($\pm$6\,dB), additive Gaussian noise (SNR 10--40\,dB), SpecAugment~\cite{park2019specaugment} (2 time masks width 20, 2 frequency masks width 10);
-  \item Training: 6 epochs, batch 32, AdamW~\cite{loshchilov2019adamw} ($\text{lr}{=}10^{-4}$, wd${=}10^{-2}$), OneCycleLR, bf16;
-  \item Loss: asymmetric multi-label BCE~\cite{ridnik2021asymmetric}.
-\end{itemize}
-Only the classification head differs.
-Full training configuration is in Appendix~\ref{app:training}.
+The prototype head is accuracy-competitive with the sigmoid baseline. Across five folds, the macro-AUC difference is $-0.007 \pm 0.006$ (prototype minus sigmoid), with a 95\% confidence interval spanning zero. The only consistent cost appears for Aves ($-0.011 \pm 0.001$), while Amphibia and Insecta have noisy fold-level deltas that are not distinguishable from zero.
 
-Two deviations from the native AudioProtoPNet recipe are disclosed:
-\begin{enumerate}
-  \item \textbf{Post-hoc projection:} Prototypes are projected to nearest training patches after training, rather than using AudioProtoPNet's in-training ``push'' step.
-    This provides a conservative validity test: prototypes would likely be more valid with the push.
-  \item \textbf{CE rescaling:} The native coefficient balance causes training collapse at 234 classes (macro AUC $\approx 0.51$).
-    Rescaling the asymmetric loss to a per-sample sum restores training while keeping the native regularizer coefficients unchanged.
-    This collapse is itself informative: AudioProtoPNet's loss balance was designed for BirdSet's 9,734-class setting and does not transfer to 234 classes without adjustment.
-\end{enumerate}
+To test prototype validity, we project each prototype to its nearest patch in a clean single-species pool of focal recordings and single-species soundscape windows. We measure \textbf{purity}, the fraction of prototypes whose nearest patch belongs to their own class, and \textbf{shortcut rate}, the fraction whose nearest patch falls in the bottom-energy region. Avian prototypes are strongly class-pure (0.951 versus a 0.006 random-prototype null) and avoid low-energy shortcut patches. Amphibian prototypes are moderately pure (0.562) but less consistently call-focused. Insect validity is coverage-limited because only 3 of 28 insect species have sufficient clean clips for this measurement.
 
-\subsection{Gate 0: CPU feasibility}
-
-Before committing to the architecture, we verified that a single ConvNeXt-Base model with the faithful prototype head fits the competition's CPU budget.
-Table~\ref{tab:gate0} reports measured inference times on the competition's 4-core Kaggle CPU.
-
-\begin{table}[t]
-\caption{Gate 0: CPU inference time (measured on Kaggle, 4 cores). Projected for 700 one-minute files $\times$ 12 windows. The prototype head adds $<$1\% overhead over the backbone.}
-\label{tab:gate0}
-\begin{tabular}{lrrl}
-\toprule
-Engine & ms/win & Projected & Verdict \\
-\midrule
-PyTorch       & 368 & 51.6\,min & PASS \\
-ONNX Runtime  & 355 & 49.6\,min & PASS \\
-OpenVINO      & 448 & 62.7\,min & PASS \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-All engines finish within the 90-minute budget.
-OpenVINO did not accelerate inference on this 4-core CPU; we include it for completeness.
-At $\sim$52\,min per model, a 5-fold ensemble would require $5 \times 52 = 260$\,min, far beyond the budget, forcing the single-model design.
-
-\subsection{Gate 1: Accuracy cost}
-
-\begin{table}[t]
-\caption{Gate 1: paired macro-ROC-AUC $\Delta$ (prototype $-$ sigmoid), per fold. Mammalia ($n{=}8$) and Reptilia ($n{=}1$) quarantined due to insufficient positives.}
-\label{tab:gate1}
-\begin{tabular}{lrrr}
-\toprule
-Taxon & $\Delta$ (mean $\pm$ SE) & Folds +/$-$ & Verdict \\
-\midrule
-Macro         & $-0.007 \pm 0.006$ & 1/4 & CI spans 0 \\
-Aves (162)    & $-0.011 \pm 0.001$ & 0/5 & robust cost \\
-Amphibia (35) & $+0.011 \pm 0.015$ & 4/1 & n.s. \\
-Insecta (28)  & $+0.011 \pm 0.056$ & 3/2 & n.s. \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Table~\ref{tab:gate1} reports per-fold paired deltas.
-The prototype head is accuracy-competitive: macro $\Delta = -0.007$, 95\% CI spanning zero.
-The only robust effect is a small avian cost ($-0.011$), negative in all five folds.
-This cost is less than 1.2 percentage points of AUC and may reflect the prototype head's additional regularization (cluster and separation losses) reducing capacity for the data-rich avian taxon.
-
-For non-avian taxa, the deltas are noisy: Amphibia shows a positive mean with one sign-flip, Insecta shows a positive mean with two sign-flips.
-Neither is statistically distinguishable from zero.
-
-\paragraph{Robustness to CE rescaling.}
-Re-running fold~0 at $0.5\times$, $1\times$, and $2\times$ the CE rescaling factor yields macro $\Delta$ of $-0.009$, $-0.008$, $-0.008$ and Aves $\Delta$ of $-0.012$, $-0.011$, $-0.012$, stable across a $4\times$ range.
-
-\paragraph{Methodology note: cross-fold pooling artifact.}
-A naive cross-fold pooled estimate (concatenating all out-of-fold predictions) yields the spurious $\Delta = -0.034$ (CI excludes zero) and Insecta $\Delta = -0.17$.
-The mechanism is straightforward: independently-trained fold models produce prototype-similarity scores on different scales.
-Within any fold the rank order is meaningful, but pooling across folds mixes incompatible scales.
-Per-fold rank-normalization, a transform that provably cannot change any single fold's AUC (verified bit-identically), collapses the pooled estimate to $+0.0003$.
-We recommend per-fold paired analysis for any cross-validated prototype model.
-
-\subsection{Gate 2: Prototype validity}
-
-\begin{table}[t]
-\caption{Gate 2: prototype validity (AudioProtoPNet, cross-fold mean $\pm$ SE). Purity = own-class nearest-patch rate vs.\ a random-prototype null (in parentheses). Shortcut = fraction landing in the bottom-energy cell at each cutoff (null = cutoff percentage).}
-\label{tab:gate2}
-\begin{tabular}{lcc}
-\toprule
-Taxon & Purity (null) & Shortcut @25/33/50 \\
-\midrule
-Aves (161)     & .951$\pm$.004 (.006) & .199 / .263 / .407 \\
-Amphibia (25)  & .562$\pm$.020 (.001) & .195 / .313 / .538 \\
-Insecta (3/28) & cvg-limited          & .056 / .177 / .384 \\
-\midrule
-Pooled         & .774$\pm$.003 (.004) & .177 / .257 / .422 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-For each fold, we project every prototype to its nearest patch in a clean single-species pool (2,857 clips from focal recordings and single-species soundscape windows) and measure two metrics:
-\textbf{Purity}, the fraction of prototypes whose nearest patch belongs to their own class, compared against a random-prototype null (shuffling prototype-to-class assignments, 100 iterations).
-\textbf{Shortcut rate}, the fraction whose nearest patch falls in the bottom energy tercile, at three cutoffs (25\%, 33\%, 50\%), with the requirement that the rate must be below null at all three for a ``call-focused'' verdict.
-
-Table~\ref{tab:gate2} reports the results.
-Avian prototypes are class-pure (0.951 vs.\ 0.006 null) and call-focused (shortcut rate below null at all three cutoffs).
-Amphibian prototypes are moderately pure (0.562) but not consistently call-peaked: below null at 25\% and 33\% but at chance at 50\%, meaning they avoid silence but do not reliably attend to call energy.
-Insect purity is coverage-limited (only 3 of 28 species have sufficient clean clips for measurement).
-
-The validity gradient tracks distance from BirdSet's bird-only pre-training domain.
-This is partly expected: the cluster loss and non-negative last layer push prototypes toward own-class features, so the informative content is the \emph{taxon spread} (0.951 vs.\ 0.562), not the headline gap from the null.
-
-
-\section{Training Configuration}
-\label{app:training}
-
-\begin{table}[t]
-\caption{AudioProtoPNet matched-control training configuration. Both heads use identical settings.}
-\label{tab:train_part1}
-\begin{tabular}{ll}
-\toprule
-Parameter & Value \\
-\midrule
-Backbone       & ConvNeXt-Base, BirdSet-XCL init~\cite{rauch2024birdset} \\
-Input           & 128-mel log-spec, 5\,s @ 32\,kHz \\
-Normalization   & Per-sample z-norm \\
-FFT / hop       & 2,048 / 512 samples \\
-Freq.\ range    & 50--16,000\,Hz \\
-Augmentation    & Gain $\pm$6\,dB, Gauss.\ noise \\
-                & SpecAug~\cite{park2019specaugment}: 2$\times$T(20), 2$\times$F(10) \\
-Optimizer       & AdamW~\cite{loshchilov2019adamw}, lr $10^{-4}$, wd $10^{-2}$ \\
-Schedule        & OneCycleLR \\
-Epochs          & 6 \\
-Batch size      & 32 \\
-Precision       & bf16 \\
-Loss            & Asymmetric BCE~\cite{ridnik2021asymmetric} \\
-CV              & 5-fold, species-stratified, file-grouped \\
-Hardware        & NVIDIA T4 ($\sim$35\,min/fold) \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[t]
-\caption{Author-built head training configuration (frozen Perch embeddings).}
-\label{tab:train_part2}
-\begin{tabular}{ll}
-\toprule
-Parameter & Value \\
-\midrule
-Substrate       & Frozen Perch v2~\cite{ghani2023global}, 1,536-d \\
-Training bank   & 708 soundscape windows \\
-Optimizer       & AdamW~\cite{loshchilov2019adamw}, lr $10^{-3}$, wd $10^{-2}$ \\
-Schedule        & Cosine annealing \\
-Epochs          & 60 (default); 25 (D2 peak) \\
-Batch size      & 64 \\
-Precision       & bf16 \\
-Loss (pure)     & FocalBCE~\cite{lin2017focal} + cluster (0.8) + sep (0.08) \\
-Loss (gated)    & FocalBCE~\cite{lin2017focal} only \\
-CV              & GroupKFold(5) \\
-Eval species    & 71 (with $\geq$1 positive) \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Tables~\ref{tab:train_part1} and~\ref{tab:train_part2} provide complete training configurations.
-For leaderboard submissions, heads were exported to ONNX and inserted into the deployed inference pipeline, replacing the ProtoSSMv2 checkpoint.
-Aux CNN members were disabled uniformly to stay within the 90-minute budget on late re-runs.
-
-
-%% ============================================================
-%%  APPENDIX B: FULL SWEEP RESULTS
-%% ============================================================
-\section{Full Sweep Results}
-\label{app:sweeps}
-
-\begin{table}[t]
-\caption{Prototype count sweep on the pure-prototype head (row~4 baseline). Per-prototype purity collapses with $K$ while AUC stays flat: extra prototypes dilute discriminative signal.}
-\label{tab:ksweep_pure}
-\begin{tabular}{rrr}
-\toprule
-$K$ & AUC & Per-proto pur. \\
-\midrule
-1  & 0.605 & 0.958 \\
-2  & 0.605 & 0.745 \\
-3  & 0.606 & 0.680 \\
-5  & 0.607 & 0.570 \\
-10 & 0.607 & 0.440 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[t]
-\caption{Prototype count sweep on the gated head (D2). Unlike the pure head, $K$ mildly improves both AUC and purity when a gate is present: the gate selectively attends to the best prototype.}
-\label{tab:ksweep_gated}
-\begin{tabular}{rrr}
-\toprule
-$K$ & AUC & Purity \\
-\midrule
-1  & 0.831 & 0.423 \\
-2  & 0.833 & 0.490 \\
-3  & 0.834 & 0.528 \\
-5  & 0.836 & 0.606 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[t]
-\caption{D2 training length sweep. AUC peaks at 25 epochs and overfits beyond, consistent with the small training bank.}
-\label{tab:epochs}
-\begin{tabular}{rr}
-\toprule
-Epochs & AUC \\
-\midrule
-10 & 0.815 \\
-25 & 0.848 \\
-40 & 0.839 \\
-60 & 0.830 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Tables~\ref{tab:ksweep_pure}--\ref{tab:epochs} report the full sweep results summarized in Section~\ref{sec:part2}.
-
-The contrasting $K$-sweep behaviors are notable.
-On the pure head (Table~\ref{tab:ksweep_pure}), each additional prototype captures less class-discriminative signal, presumably because the single-prototype solution already finds the mode of each class's embedding distribution.
-On the gated head (Table~\ref{tab:ksweep_gated}), redundant prototypes are less costly because the gate can shift weight to whichever prototype best matches the current input.
-
-The D2 training curve (Table~\ref{tab:epochs}) shows clear overfitting beyond 25 epochs.
-This is expected given the small training bank: 708 windows across 71 species yields approximately 10 positive windows per species on average, insufficient for deep models but adequate for the small linear heads we employ.
+These results show that prototype explanations can be class-pure and call-focused in this cleaner single-backbone setting. They do not show that prototype explanations are generally valid in BirdCLEF+ deployment. Therefore, the main paper's leaderboard reversal should not be read as evidence that prototype interpretability is impossible in bioacoustics. Rather, it supports our narrower claim: prototype components that look valid offline may still fail when selected under partial-label evaluation and deployed inside a full BirdCLEF system.
 
 
 \end{document}
