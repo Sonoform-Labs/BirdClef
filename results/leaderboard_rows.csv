@@ -1,0 +1,11 @@
+variant,offline_auc,public_auc,private_auc,role,notes
+ProtoSSMv2,0.803,0.94908,0.94218,deployed reference,fixed public prototype member (best)
+ProtoSSMv2_noSSM,,0.94805,0.94089,temporal ablation,bidirectional SSM + cross-attention removed from the deployed head
+D1_cov_gated,0.606,0.94412,0.93964,rescue,D1 on covered species; raw Perch on absent
+ProtoSSMv2_cov_gated,0.803,0.94642,0.93954,rescue,deployed head coverage-gated
+D2_reweighted,0.830,0.94183,0.93928,rescue,D2 with down-weighted prototype blend
+Drop_raw_Perch,0.739,0.94513,0.93920,no prototype,prototype member replaced with raw Perch logits
+D1_pure,0.606,0.93767,0.93810,primary replacement,pure prototype head
+D2_cov_gated,0.830,0.94391,0.93777,rescue,D2 coverage-gated
+D2_input_gated,0.830,0.94050,0.93743,primary replacement,input-gated prototype head
+D2_FOCAL,,0.93872,0.93522,rescue,gated head trained on combined focal+soundscape bank
