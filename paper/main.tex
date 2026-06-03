@@ -16,27 +16,27 @@
 \conference{CLEF 2026: Conference and Labs of the Evaluation Forum,
   September 21--24, 2026, Jena, Germany}
 
-\title{System-Level Evaluation of Prototype Heads under Partial
-  Label Coverage in BirdCLEF+ 2026}
+\title{Partial-Label Evaluation of Prototype Networks with
+  Temporal Aggregation in BirdCLEF+ 2026}
 
 \author[1]{Tsz Chai Alan Liu}[%
   email=tcaliu@sonoform.org,
 ]
-\address[1]{Sonoform, Ontario, Canada}
+\address[1]{Sonoform Labs, Ontario, Canada}
 
 %% ============================================================
 \begin{abstract}
-Interpretable components are usually evaluated in isolation, yet deployed inside larger systems. We ask whether offline component rankings survive deployment, using a public, high-performing BirdCLEF+ 2026 pipeline (Perch + prototype + SED rank-fusion; private macro-AUC 0.942) as a fixed deployment testbed. The pipeline is not our contribution; our contribution is the controlled replacement of its prototype member with author-built prototype heads, and the analysis of what follows. Offline, on a 708-window soundscape bank that covers only 71 of the 234 species, our heads trace a clean interpretability--accuracy frontier and one even exceeds the deployed head. Swapped into the full 234-species system and scored on the hidden test, the ranking reverses: neither of our two primary heads improves over raw Perch logits, and the higher-offline-accuracy of the two (D2) ranks worst under deployment. We trace the cause to the partial-label evaluation: the offline bank omits 163 species, and our primary heads disproportionately damage those uncovered species in the full macro-AUC system, whereas the deployed head preserves stronger signal for them. A controlled matched-control study (appendix) confirms that prototype interpretability can be near-free and call-focused in a clean setting, which makes the deployment failure the more striking. The gaps are small and rest on a single hidden test, so we frame this as a documented failure mode of partial-label offline evaluation, not a universal law.
+BirdCLEF+ 2026 requires identifying 234 bird, amphibian, insect, mammal, and reptile species from Brazilian Pantanal soundscape recordings under a strict 90-minute CPU-only inference deadline. Prototype-based models are attractive for this setting because they can attach predictions to interpretable acoustic evidence, but their offline evaluation may cover only a subset of the deployment label space. We study this problem by using a fixed Perch+prototype+SED rank-fusion pipeline as a deployment testbed and replacing only its prototype member with author-built prototype heads trained on frozen Perch embeddings. The original prototype member uses temporal aggregation across soundscape windows, while the replacement heads make window-level predictions. On a 708-window labelled soundscape bank covering 71 of 234 species, the replacement heads form a clear interpretability--accuracy frontier, and the higher-accuracy D2 head outperforms the deployed prototype member on the covered-species bank. However, this offline ranking does not transfer to the full hidden test: D1 scores 0.938 private macro-AUC, D2 scores 0.937, and a raw-Perch version without the prototype member scores 0.939, while the original temporally aggregated prototype member remains best at 0.942. We trace the failure to label-space coverage. The offline bank contains no positive examples for 163 target species, and the replacement heads disproportionately degrade ranking on those absent species when deployed inside the full system. A supporting matched-control study shows that prototype explanations can be class-pure and call-focused in a cleaner setting, so the result is not simply a failure of prototypes as explanations. Overall, our experiments document a failure mode of partial-label evaluation: a prototype component can improve the covered-species offline benchmark while reducing performance in the full bioacoustic deployment system.
 
 \end{abstract}
 
 \begin{keywords}
-  BirdCLEF+ 2026 \sep
-  bioacoustics \sep
-  prototype-based models \sep
-  interpretability \sep
-  partial-label evaluation \sep
-  offline--deployment gap
+  Bioacoustics \sep
+  Temporal Aggregation \sep
+  Partial-Label Evaluation \sep
+  Prototype Networks \sep
+  Interpretability \sep
+  BirdCLEF
 \end{keywords}
 
 \maketitle
