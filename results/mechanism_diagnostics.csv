@@ -1,0 +1,10 @@
+analysis,group,value,notes
+D2_gate_mean,covered_71,0.779,mean input-gate gamma on covered species
+D2_gate_mean,absent_163,0.767,mean input-gate gamma on absent species
+D2_perch_correlation,covered_71,0.319,correlation between D2 score and Perch logit
+D2_perch_correlation,absent_163,0.276,
+D2_variance_ratio,covered_71,0.485,fraction of Perch score variance retained
+D2_variance_ratio,absent_163,0.347,
+deployed_edge_over_perch,covered_71,0.0003,ProtoSSMv2 advantage over raw Perch from covered species
+deployed_edge_over_perch,absent_163,0.0026,ProtoSSMv2 advantage over raw Perch from absent species
+noSSM_private_delta,all,-0.00129,temporal-module ablation (0.94218 -> 0.94089)

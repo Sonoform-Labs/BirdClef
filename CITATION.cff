@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: "Partial-Label Evaluation of Prototype Networks with Temporal Aggregation in BirdCLEF+ 2026"
+message: "If you use this repository, please cite the associated preprint."
+type: software
+authors:
+  - family-names: Liu
+    given-names: Tsz Chai Alan
+    affiliation: "Sonoform Labs"
+repository-code: "https://github.com/Sonoform-Labs/BirdClef"
+date-released: "2026-06-18"
+license: MIT

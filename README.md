@@ -30,3 +30,12 @@ A **supporting matched-control study** (faithful AudioProtoPNet vs a matched sig
 
 ## Attribution
 The competition **pipeline** (Perch + ProtoSSM + SED rank-fusion) is adopted unchanged from public Kaggle notebooks (notably hideyukizushi's ProtoSSMv2) and is **not** claimed as novel, as stated in the paper. The **author-built** contributions are the Part II prototype heads, the full experimental study, the mechanism decomposition, and all analysis. The AudioProtoPNet head (Part I) is from Heinrich et al. (2025) / the BirdSet repository, used under their terms. This repository deliberately excludes those upstream codebases; it contains only first-party code, results, and the paper.
+
+## Reproducibility & data
+See [`docs/reproducibility.md`](docs/reproducibility.md) and [`docs/data_statement.md`](docs/data_statement.md). In short: offline OOF metrics and prototype purity are reproducible given the BirdCLEF+ 2026 data and checkpoints; **hidden-test leaderboard scores cannot be independently recomputed** because the hidden labels are not public, so they are reported as descriptive Kaggle-submission outcomes. Summary numbers live in [`results/`](results/): `leaderboard_rows.csv`, `offline_oof_summary.csv`, `mechanism_diagnostics.csv`.
+
+## Citation
+If you use this repository, please cite the associated preprint (see [`CITATION.cff`](CITATION.cff)).
+
+## License
+Code is provided under the [MIT License](LICENSE). Paper text and figures are provided under CC BY 4.0, consistent with the paper's CEUR declaration.

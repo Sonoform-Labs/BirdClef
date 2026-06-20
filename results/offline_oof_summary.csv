@@ -1,0 +1,10 @@
+config,offline_auc,purity,notes
+Perch alone,0.739,,raw Perch logits (no prototype head)
+Linear probe,0.766,,linear probe on frozen Perch embeddings
+1-proto no loss,0.762,0.69,single prototype; no interpretability losses
++ cluster loss,0.604,0.944,cluster loss added
++ separation loss,0.605,0.958,separation loss added
++ static gate,0.742,0.958,static-gate fusion (free-interpretability point)
+D2 input-gated,0.830,0.437,input-dependent gate (primary head)
+D1 pure (3-proto+loss),0.606,0.958,pure prototype head (primary head)
+ProtoSSMv2,0.803,0.790,deployed reference head
