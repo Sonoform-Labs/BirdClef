@@ -1,6 +1,5 @@
 # Gate-1: canonical results card (locked 2026-06-05)
-Full write-up: `paper_gate1_draft.md` · raw numbers: `paper_analysis/joint_faithful/gate1_faithful_FINAL.csv`
-Pipeline: `paper_analysis/{faithful_head.py, train_faithful.py, faithful_orchestrator.ps1, gate1_faithful_diagnose.py}`
+Code: `src/part1_audioprotopnet/` (`faithful_head.py`, `train_faithful.py`, `gate1_faithful_diagnose.py`).
 
 ## Faithful AudioProtoPNet vs matched sigmoid head (5-fold, per-fold paired Δ = primary metric)
 

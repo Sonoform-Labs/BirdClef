@@ -1,6 +1,6 @@
 # BirdCLEF+ 2026: Paper Results (consolidated)
 
-*Single-file record of all experimental results. Two parts: Part I = faithful AudioProtoPNet interpretability study (offline, ConvNeXt); Part II = prototype heads on Perch embeddings + the leaderboard investigation. Figures referenced live in `paper/fig_*.png`.*
+*Single-file record of all experimental results. Two parts: Part I = faithful AudioProtoPNet interpretability study (offline, ConvNeXt); Part II = prototype heads on Perch embeddings + the leaderboard investigation. Figures referenced live in `paper/figures/fig_*.png`.*
 
 ---
 
@@ -70,7 +70,7 @@ Substrate: frozen Perch v2 (1536-d). Eval: 708 labelled-soundscape windows, Grou
 
 → D2's accuracy gain is largest where the foundation is weakest (Aves/Amphibia) and ~0 on Insecta; D1's collapse is taxon-general. The accuracy-gain gradient is **orthogonal** to the purity gradient (Insecta-cleanest).
 
-**Figure 1** = the offline frontier (purity vs AUC), `paper/fig_frontier.png`.
+**Figure 1** = the offline frontier (purity vs AUC), `paper/figures/fig_frontier.png`.
 
 **Completeness, the remaining never-run rows (`_fill_gaps.py`):**
 - **Full-spec D2 (input gate + cluster + sep) = 0.691 / 0.958** vs as-built D2 (no loss) 0.830 / 0.437. The purity collapse is a *direct trade*, not the gate hollowing a pure prototype: force purity back and accuracy collapses *below* the static gate. **Accuracy XOR purity, no gated config is both.** (Sharpens the frontier.)
@@ -103,7 +103,7 @@ Each head swapped in as the proto member of the **deployed competition pipeline*
 2. **Both author heads score *below* raw Perch**: swapping in either is worse than no head.
 3. **Offline accuracy anti-predicts the leaderboard**: D2 (highest offline AUC) is *last*.
 
-**Figure 2** = offline-vs-deployment inversion (`paper/fig_oof_vs_lb.png`); **Figure 3** = the leaderboard ladder (`paper/fig_lb_bars.png`).
+**Figure 2** = offline-vs-deployment inversion (`paper/figures/fig_oof_vs_lb.png`); **Figure 3** = the leaderboard ladder (`paper/figures/fig_lb_bars.png`).
 
 ## II.4: Mechanism, decomposed (three controls + a capstone)
 
@@ -130,7 +130,7 @@ The deployed head's advantage is **on-domain (soundscape) training + an architec
 ---
 
 ## Files
-- **Results:** this file + `GATE_PROTOSSM_RESULTS.md` (Part II detail), `GATE1_RESULTS.md` / `GATE2_RESULTS.md` (Part I detail).
-- **Paper prose:** `paper_frontier_draft.md` (Part II section), `paper_gate1_draft.md` / `paper_gate2_draft.md` (Part I), `paper/paper.tex` (working-note port).
-- **Figures:** `paper/fig_frontier.{png,pdf}` (1), `paper/fig_oof_vs_lb.{png,pdf}` (2), `paper/fig_lb_bars.{png,pdf}` (3).
-- **Reproducibility:** `train_ablation.py`, `train_sweeps.py`, `_pertaxon_oof.py`, `_mechanism_diag.py`, `_perch_local.py`, `_focal_embed.py`, `_train_d2_focal.py`, `_build_fast.py`, `_export_d{1,2}.py`, `_export_coverage.py`.
+- **Reports:** this file; `part2_protossm.md` (Part II detail), `part1_gate1.md` / `part1_gate2.md` (Part I detail), `preregistration.md`.
+- **Tables:** `../tables/` (CSV metrics).
+- **Figures:** `paper/figures/fig_frontier.{png,pdf}` (1), `fig_oof_vs_lb.{png,pdf}` (2), `fig_lb_bars.{png,pdf}` (3).
+- **Code:** `../../src/`; see `../../docs/reproducibility.md`.

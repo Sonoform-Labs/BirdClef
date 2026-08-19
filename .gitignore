@@ -1,4 +1,3 @@
-# ---- Python ----
 __pycache__/
 *.py[cod]
 .venv/
@@ -6,8 +5,6 @@ venv/
 env/
 .ipynb_checkpoints/
 
-# ---- Heavy inputs & derived artifacts (regenerable; kept out of git) ----
-# raw/cached audio, foundation-model weights, embedding banks, trained heads
 data/
 models/
 _perch_meta/
@@ -23,7 +20,6 @@ _proto_ckpt/
 *.npz
 *.npy
 *.parquet
-# the 708-window Perch bank, focal bank, exported head weights, masks, OOF arrays
 focal_bank.npz
 d1_weights.npz
 d2_weights.npz
@@ -31,13 +27,11 @@ d2focal_weights.npz
 covered_mask.npz
 perch_map.npz
 
-# ---- Kaggle ----
 kaggle.json
 .kaggle/
 kaggle_push*/
 *.zip
 
-# ---- LaTeX build artifacts (keep sources + figures, drop build output) ----
 *.aux
 *.bbl
 *.blg
@@ -49,7 +43,6 @@ kaggle_push*/
 *.synctex.gz
 paper/main.pdf
 
-# ---- OS / editors ----
 .DS_Store
 Thumbs.db
 .vscode/

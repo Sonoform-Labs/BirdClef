@@ -1,5 +1,5 @@
 # Gate-2 results: prototype validity (faithful AudioProtoPNet, 5-fold, inference-only)
-Pre-reg: `GATE2_PREREG.md`. Pool: 2857 clean single-species clips. Cross-fold mean ± SE over 5 fold-models. Per-fold purity 0.765–0.785 (stable).
+Pre-reg: `preregistration.md`. Pool: 2857 clean single-species clips. Cross-fold mean ± SE over 5 fold-models. Per-fold purity 0.765–0.785 (stable).
 
 | scope | purity (obs vs random null) | shortcut@25/33/50 (null .25/.33/.50) | read |
 |---|---|---|---|

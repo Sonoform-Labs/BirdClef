@@ -1,4 +1,3 @@
-# CE-rescale sensitivity: fold 0, scales 0.5x/1x/2x, both heads, seed 42, per-run isolation + retry.
 $ErrorActionPreference = 'Continue'
 $env:HF_HOME='D:\hf_cache'; $env:TMP='D:\tmp'; $env:TEMP='D:\tmp'; $env:PYTHONUTF8='1'
 $py='D:\Python\BirdClef\.venv\Scripts\python.exe'

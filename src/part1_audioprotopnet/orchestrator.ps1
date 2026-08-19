@@ -1,6 +1,3 @@
-# Per-fold orchestration for the 5-fold joint run (folds 1-4; fold 0 already banked).
-# Each fold runs as its OWN process (fresh CUDA context => no accumulation/leak across folds).
-# Retry once on silent death. Captures per-attempt stderr. Aggregates at the end.
 $ErrorActionPreference = 'Continue'
 $env:HF_HOME = 'D:\hf_cache'; $env:TMP = 'D:\tmp'; $env:TEMP = 'D:\tmp'
 $py     = 'D:\Python\BirdClef\.venv\Scripts\python.exe'

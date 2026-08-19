@@ -44,7 +44,7 @@ Purity rises with sample count (Spearman(purity, log npos) = 0.30; npos-tercile 
 ## Reproduce
 - Model code: `_protossm_model.py` (3 classes lifted verbatim from the training kernel). Projection: `_project.py`.
 - Inputs: `_proto_ckpt/train_proto_ssm_single/models/proto_ssm_best.pt` (trained weights), `_perch_meta/full_perch_arrays.npz` (`emb_full` 708×1536) + `full_perch_meta.parquet`, `data/train_soundscapes_labels.csv`.
-- Per-prototype table: `GATE_PROTOSSM_projection.csv`.
+- Per-prototype table: `../tables/gate_protossm_projection.csv`.
 
 ## Paper implication
 The scoped component-level claim now has **first-party numbers**: the deployed prototype head is projection-valid (0.79, 42σ), its gate is flat (honest negative), and its taxon pattern contrasts with the faithful AudioProtoPNet, a genuinely new, defensible result that strengthens the interpretability section without overclaiming.
@@ -96,7 +96,7 @@ Single-prototype, raw 1536-d Perch, GroupKFold(5), 708-window OOF, each row chan
 |, | ProtoSSMv2 (deployed) | 0.803 | 0.79 | middle of the frontier |
 
 **The mechanism, isolated:** the *cluster loss* (row 2→3) is what buys interpretability (+0.25 purity) at a steep accuracy cost (−0.16); the *input-dependent gate* (row 5→6) is what buys accuracy (+0.088 over Perch-level) by hollowing out the prototype (−0.52 purity). Separation loss and prototype count barely matter. **Row 5 is a genuine sweet spot** (static gate): 0.96 purity at Perch-level accuracy, interpretability essentially free, you just don't *beat* Perch. To beat it you must spend the prototype's validity (row 6). This is the build-up + frontier in one table, with single-knob attribution.
-(Per-taxon AUC for every row saved in the run log; purity per-taxon in `GATE_PROTOSSM_projection.csv`-style outputs.)
+(Per-taxon AUC for every row saved in the run log; purity per-taxon in `gate_protossm_projection.csv`-style outputs.)
 
 ## ★ SWEEPS (Cat 3 / 5 / 6 / 7): `train_sweeps.py`, 708-window OOF, GroupKFold(5)
 Four knob-grids that probe the frontier's edges. Headline: **none of them break the frontier**: they refine where each branch sits.

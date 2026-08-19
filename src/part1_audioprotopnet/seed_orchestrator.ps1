@@ -1,5 +1,3 @@
-# Seed-variance armor for Gate 1: fold 0, 3 seeds, both heads. Per-seed process isolation + retry.
-# Closes the "1 seed/fold" objection by showing within-fold seed variance << the -0.027 effect.
 $ErrorActionPreference = 'Continue'
 $env:HF_HOME='D:\hf_cache'; $env:TMP='D:\tmp'; $env:TEMP='D:\tmp'
 $py='D:\Python\BirdClef\.venv\Scripts\python.exe'

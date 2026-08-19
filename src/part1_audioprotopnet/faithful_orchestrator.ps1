@@ -1,4 +1,3 @@
-# Faithful AudioProtoPNet 5-fold run (folds 0-4), per-fold process isolation + retry, then aggregate.
 $ErrorActionPreference = 'Continue'
 $env:HF_HOME='D:\hf_cache'; $env:TMP='D:\tmp'; $env:TEMP='D:\tmp'
 $py='D:\Python\BirdClef\.venv\Scripts\python.exe'
